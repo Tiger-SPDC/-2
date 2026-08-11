@@ -10,10 +10,12 @@ from pathlib import Path
 import yaml
 
 from industry_intelligence.config.models import (
+    AnalysisConfig,
     CollectionConfig,
     CompanyEntity,
     LLMConfig,
     QualityConfig,
+    ReportConfig,
     StorageConfig,
     SystemConfig,
     TaskConfig,
@@ -29,6 +31,12 @@ from industry_intelligence.config.models import (
 
 class ConfigError(ValueError):
     """配置加载或验证失败。"""
+
+
+# AnalysisConfig 的内置默认值（与 models.py 中 dataclass 默认保持一致）
+DEFAULT_ANALYSIS_DIMENSIONS = ["competitor", "market", "technology", "risk"]
+DEFAULT_COMPARISON_WINDOWS = [1, 4, 12, 52]
+DEFAULT_CONFIDENCE_THRESHOLD = 0.5
 
 
 def load_system_config(path: str | Path = "config/system.yaml") -> SystemConfig:
@@ -165,6 +173,8 @@ def _parse_system_config(data: dict[str, object], path: str) -> SystemConfig:
             ),
         ),
         llm=_parse_llm_config(data, path),
+        analysis=_parse_analysis_config(data, path),
+        report=_parse_report_config(data, path),
     )
 
 
@@ -177,6 +187,42 @@ def _parse_llm_config(data: dict[str, object], path: str) -> LLMConfig:
         base_url=_as_str(llm.get("base_url"), "llm.base_url", path),
         temperature=_as_float(llm.get("temperature"), "llm.temperature", path),
         max_tokens=_as_int(llm.get("max_tokens"), "llm.max_tokens", path),
+    )
+
+
+def _parse_analysis_config(data: dict[str, object], path: str) -> AnalysisConfig:
+    """解析 config/system.yaml -> analysis 段；缺省时返回内置默认值。"""
+    analysis = _mapping(data, "analysis", path)
+    if not analysis:
+        return AnalysisConfig()
+    return AnalysisConfig(
+        enabled_dimensions=_as_str_list(
+            analysis.get("enabled_dimensions"), "analysis.enabled_dimensions", path
+        )
+        or DEFAULT_ANALYSIS_DIMENSIONS,
+        comparison_windows=_as_int_list(
+            analysis.get("comparison_windows"), "analysis.comparison_windows", path
+        )
+        or DEFAULT_COMPARISON_WINDOWS,
+        confidence_threshold=_as_float(
+            analysis.get("confidence_threshold") or DEFAULT_CONFIDENCE_THRESHOLD,
+            "analysis.confidence_threshold",
+            path,
+        ),
+    )
+
+
+def _parse_report_config(data: dict[str, object], path: str) -> ReportConfig:
+    """解析 config/system.yaml -> report 段；缺省时返回内置默认值。"""
+    report = _mapping(data, "report", path)
+    if not report:
+        return ReportConfig()
+    return ReportConfig(
+        markdown=_as_bool(report.get("markdown"), "report.markdown", path),
+        excel=_as_bool(report.get("excel"), "report.excel", path),
+        wechat_digest=_as_bool(
+            report.get("wechat_digest"), "report.wechat_digest", path
+        ),
     )
 
 
@@ -333,6 +379,16 @@ def _as_str_list(value: object, field: str, path: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
         raise ConfigError(f"{path}: field {field} must be a list of strings")
     return [v.strip() for v in value if v.strip()]
+
+
+def _as_int_list(value: object, field: str, path: str) -> list[int]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(
+        isinstance(v, int) and not isinstance(v, bool) for v in value
+    ):
+        raise ConfigError(f"{path}: field {field} must be a list of integers")
+    return list(value)
 
 
 def _as_optional_str_list(value: object, field: str) -> list[str] | None:

@@ -93,6 +93,25 @@ def test_load_llm_config_section(project_root: Path) -> None:
     assert cfg.llm.max_tokens == 4096
 
 
+def test_load_analysis_config(project_root: Path) -> None:
+    cfg = load_system_config(project_root / "config" / "system.yaml")
+    assert cfg.analysis.enabled_dimensions == [
+        "competitor",
+        "market",
+        "technology",
+        "risk",
+    ]
+    assert cfg.analysis.comparison_windows == [1, 4, 12, 52]
+    assert cfg.analysis.confidence_threshold == 0.5
+
+
+def test_load_report_config(project_root: Path) -> None:
+    cfg = load_system_config(project_root / "config" / "system.yaml")
+    assert cfg.report.markdown is True
+    assert cfg.report.excel is True
+    assert cfg.report.wechat_digest is True
+
+
 def test_load_event_types(project_root: Path) -> None:
     from industry_intelligence.config.loader import load_event_types
 

@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS runs (
     documents_deduped INTEGER NOT NULL DEFAULT 0,
     events_created INTEGER NOT NULL DEFAULT 0,
     observations_extracted INTEGER NOT NULL DEFAULT 0,
+    analysis_claims INTEGER NOT NULL DEFAULT 0,
+    evidence_coverage REAL NOT NULL DEFAULT 0,
     errors TEXT NOT NULL DEFAULT '[]'
 );
 
@@ -71,7 +73,8 @@ CREATE TABLE IF NOT EXISTS events (
     event_date TEXT NOT NULL,
     summary TEXT NOT NULL,
     confidence REAL NOT NULL,
-    topic_id TEXT NOT NULL
+    topic_id TEXT NOT NULL,
+    entity_ids TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS event_documents (
@@ -93,6 +96,27 @@ CREATE TABLE IF NOT EXISTS observations (
     confidence REAL NOT NULL,
     evidence_text TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS claims (
+    claim_id TEXT PRIMARY KEY,
+    claim_text TEXT NOT NULL,
+    claim_type TEXT NOT NULL
+        CHECK (claim_type IN ('fact', 'inference', 'forecast', 'unknown')),
+    confidence REAL NOT NULL,
+    entity_id TEXT,
+    analysis_type TEXT NOT NULL,
+    topic_id TEXT NOT NULL,
+    run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS claim_evidence (
+    claim_id TEXT NOT NULL REFERENCES claims(claim_id) ON DELETE CASCADE,
+    document_id TEXT REFERENCES documents(document_id) ON DELETE SET NULL,
+    observation_id TEXT REFERENCES observations(observation_id) ON DELETE SET NULL,
+    evidence_role TEXT NOT NULL DEFAULT 'primary_source'
+        CHECK (evidence_role IN ('primary_source', 'cross_validation', 'context')),
+    CHECK (document_id IS NOT NULL OR observation_id IS NOT NULL)
+);
 """
 
 
@@ -110,13 +134,32 @@ class SQLiteStore:
         self.rebuild()
 
     def rebuild(self) -> None:
-        """幂等建表。"""
+        """幂等建表；对旧 runs 表做无损列迁移。"""
         with self._conn:
             self._conn.executescript(_SCHEMA)
+            self._ensure_runs_columns()
+
+    def _ensure_runs_columns(self) -> None:
+        """老库 runs 表缺少 Phase 3 字段时补列（SQLite 无法在 IF NOT EXISTS 中加列）。
+
+        SQLite 可 DROP 后重建（JSONL 为事实源），此处仅为旧库兼容。
+        """
+        cols = {
+            row["name"]
+            for row in self._conn.execute("PRAGMA table_info(runs)").fetchall()
+        }
+        for name, ddl in (
+            ("analysis_claims", "INTEGER NOT NULL DEFAULT 0"),
+            ("evidence_coverage", "REAL NOT NULL DEFAULT 0"),
+        ):
+            if name not in cols:
+                self._conn.execute(f"ALTER TABLE runs ADD COLUMN {name} {ddl}")
 
     def drop_all(self) -> None:
         """删除全部业务表（JSONL 为事实源，SQLite 可 DROP 后重建）。"""
         tables = (
+            "claim_evidence",
+            "claims",
             "event_documents",
             "observations",
             "events",
@@ -193,8 +236,9 @@ class SQLiteStore:
             self._conn.execute(
                 """
                 INSERT OR REPLACE INTO events (
-                    event_id, event_type_id, title, event_date, summary, confidence, topic_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    event_id, event_type_id, title, event_date, summary, confidence,
+                    topic_id, entity_ids
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.event_id,
@@ -204,6 +248,7 @@ class SQLiteStore:
                     event.summary,
                     event.confidence,
                     event.topic_id,
+                    json.dumps(event.entity_ids, ensure_ascii=False),
                 ),
             )
             for document_id in event.document_ids:
@@ -237,6 +282,58 @@ class SQLiteStore:
                 ),
             )
 
+    def insert_claim(
+        self,
+        claim_id: str,
+        claim_text: str,
+        claim_type: str,
+        confidence: float,
+        analysis_type: str,
+        topic_id: str,
+        run_id: str,
+        entity_id: str | None = None,
+    ) -> None:
+        """写入一条分析 Claim（参数化，主键冲突时覆盖）。"""
+        with self._conn:
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO claims (
+                    claim_id, claim_text, claim_type, confidence, entity_id,
+                    analysis_type, topic_id, run_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    claim_id,
+                    claim_text,
+                    claim_type,
+                    confidence,
+                    entity_id,
+                    analysis_type,
+                    topic_id,
+                    run_id,
+                ),
+            )
+
+    def insert_claim_evidence(
+        self,
+        claim_id: str,
+        document_id: str | None = None,
+        observation_id: str | None = None,
+        evidence_role: str = "primary_source",
+    ) -> None:
+        """为 Claim 挂接一条证据；至少需要 document_id 或 observation_id 之一。"""
+        if document_id is None and observation_id is None:
+            raise ValueError("claim_evidence requires document_id or observation_id")
+        with self._conn:
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO claim_evidence (
+                    claim_id, document_id, observation_id, evidence_role
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (claim_id, document_id, observation_id, evidence_role),
+            )
+
     def insert_run(
         self, run_id: str, topic_id: str, task_id: str, started_at: str
     ) -> None:
@@ -256,6 +353,8 @@ class SQLiteStore:
         documents_deduped: int = 0,
         events_created: int = 0,
         observations_extracted: int = 0,
+        analysis_claims: int = 0,
+        evidence_coverage: float = 0.0,
         errors: list[str] | None = None,
     ) -> None:
         finished_at = datetime.now(UTC).isoformat(timespec="seconds")
@@ -264,7 +363,7 @@ class SQLiteStore:
                 """
                 UPDATE runs SET finished_at = ?, status = ?, documents_collected = ?,
                 documents_deduped = ?, events_created = ?, observations_extracted = ?,
-                errors = ? WHERE run_id = ?
+                analysis_claims = ?, evidence_coverage = ?, errors = ? WHERE run_id = ?
                 """,
                 (
                     finished_at,
@@ -273,6 +372,8 @@ class SQLiteStore:
                     documents_deduped,
                     events_created,
                     observations_extracted,
+                    analysis_claims,
+                    evidence_coverage,
                     json.dumps(errors or [], ensure_ascii=False),
                     run_id,
                 ),
@@ -307,3 +408,168 @@ class SQLiteStore:
             params.append(metric_id)
         sql += " ORDER BY o.value DESC"
         return self._conn.execute(sql, params).fetchall()
+
+    # -------------------------------------------------------- Phase 3 历史查询
+
+    def query_events_in_range(
+        self,
+        topic_id: str,
+        start_date: str,
+        end_date: str,
+        event_type_id: str | None = None,
+    ) -> list[sqlite3.Row]:
+        """按时间窗口查询事件（闭区间，ISO 时间字符串比较）。"""
+        sql = (
+            "SELECT * FROM events"
+            " WHERE topic_id = ? AND event_date >= ? AND event_date <= ?"
+        )
+        params: list[object] = [topic_id, start_date, end_date]
+        if event_type_id:
+            sql += " AND event_type_id = ?"
+            params.append(event_type_id)
+        sql += " ORDER BY event_date"
+        return self._conn.execute(sql, params).fetchall()
+
+    def query_observations_in_range(
+        self,
+        topic_id: str,
+        metric_id: str | None = None,
+        entity_id: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> list[sqlite3.Row]:
+        """按时间窗口查询观测。
+
+        观测归属窗口取其 period_end；period 缺失时回退到文档 fetched_at。
+        """
+        sql = (
+            "SELECT o.* FROM observations o"
+            " JOIN documents d ON d.document_id = o.document_id"
+            " WHERE d.topic_id = ?"
+        )
+        params: list[object] = [topic_id]
+        if metric_id:
+            sql += " AND o.metric_id = ?"
+            params.append(metric_id)
+        if entity_id:
+            sql += " AND o.entity_id = ?"
+            params.append(entity_id)
+        if start_date:
+            sql += " AND COALESCE(o.period_end, d.fetched_at) >= ?"
+            params.append(start_date)
+        if end_date:
+            sql += " AND COALESCE(o.period_end, d.fetched_at) <= ?"
+            params.append(end_date)
+        sql += " ORDER BY o.value DESC"
+        return self._conn.execute(sql, params).fetchall()
+
+    def query_documents_by_entity(
+        self,
+        topic_id: str,
+        entity_id: str,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> list[sqlite3.Row]:
+        """按实体查询文档（documents.matched_entities JSON 数组包含该实体）。"""
+        sql = (
+            "SELECT * FROM documents d"
+            " WHERE d.topic_id = ?"
+            " AND EXISTS ("
+            "   SELECT 1 FROM json_each(d.matched_entities) WHERE json_each.value = ?"
+            " )"
+        )
+        params: list[object] = [topic_id, entity_id]
+        if start_date:
+            sql += " AND d.fetched_at >= ?"
+            params.append(start_date)
+        if end_date:
+            sql += " AND d.fetched_at <= ?"
+            params.append(end_date)
+        sql += " ORDER BY d.fetched_at"
+        return self._conn.execute(sql, params).fetchall()
+
+    def query_documents_in_range(
+        self,
+        topic_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> list[sqlite3.Row]:
+        """按时间窗口查询文档（fetched_at 落在闭区间内）。"""
+        return self._conn.execute(
+            "SELECT * FROM documents WHERE topic_id = ?"
+            " AND fetched_at >= ? AND fetched_at <= ?"
+            " ORDER BY fetched_at",
+            (topic_id, start_date, end_date),
+        ).fetchall()
+
+    def query_events_by_entity(
+        self,
+        topic_id: str,
+        entity_id: str,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> list[sqlite3.Row]:
+        """按实体查询事件（events.entity_ids JSON 数组包含该实体）。"""
+        sql = (
+            "SELECT e.* FROM events e"
+            " WHERE e.topic_id = ?"
+            " AND EXISTS ("
+            "   SELECT 1 FROM json_each(e.entity_ids) WHERE json_each.value = ?"
+            " )"
+        )
+        params: list[object] = [topic_id, entity_id]
+        if start_date:
+            sql += " AND e.event_date >= ?"
+            params.append(start_date)
+        if end_date:
+            sql += " AND e.event_date <= ?"
+            params.append(end_date)
+        sql += " ORDER BY e.event_date"
+        return self._conn.execute(sql, params).fetchall()
+
+    def query_prior_runs(self, topic_id: str, limit: int = 10) -> list[sqlite3.Row]:
+        """查询主题下最近的成功运行记录（按开始时间倒序）。"""
+        return self._conn.execute(
+            "SELECT * FROM runs WHERE topic_id = ? AND status = 'success'"
+            " ORDER BY started_at DESC LIMIT ?",
+            (topic_id, limit),
+        ).fetchall()
+
+    def count_events_by_type(
+        self,
+        topic_id: str,
+        entity_id: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, int]:
+        """按事件类型计数（可选实体 / 时间窗口过滤），返回 {event_type_id: count}。"""
+        sql = "SELECT event_type_id, COUNT(*) AS cnt FROM events e WHERE e.topic_id = ?"
+        params: list[object] = [topic_id]
+        if entity_id:
+            sql += (
+                " AND EXISTS ("
+                "   SELECT 1 FROM json_each(e.entity_ids) WHERE json_each.value = ?"
+                " )"
+            )
+            params.append(entity_id)
+        if start_date:
+            sql += " AND e.event_date >= ?"
+            params.append(start_date)
+        if end_date:
+            sql += " AND e.event_date <= ?"
+            params.append(end_date)
+        sql += " GROUP BY event_type_id"
+        rows = self._conn.execute(sql, params).fetchall()
+        return {row["event_type_id"]: int(row["cnt"]) for row in rows}
+
+    def query_claims(self, run_id: str) -> list[sqlite3.Row]:
+        """查询某次运行的分析 Claim。"""
+        return self._conn.execute(
+            "SELECT * FROM claims WHERE run_id = ? ORDER BY claim_id", (run_id,)
+        ).fetchall()
+
+    def query_claim_evidence(self, claim_id: str) -> list[sqlite3.Row]:
+        """查询某条 Claim 的证据。"""
+        return self._conn.execute(
+            "SELECT * FROM claim_evidence WHERE claim_id = ?", (claim_id,)
+        ).fetchall()

@@ -1,10 +1,10 @@
 # PROJECT_STATUS
 
 - **Project:** Industry Intelligence Agent
-- **Version:** v0.3.0a1
+- **Version:** v0.4.0a1
 - **Date:** 2026-08-11
-- **Current phase:** Phase 2（事件与指标抽取已完成）
-- **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / CLI
+- **Current phase:** Phase 3（竞争情报分析已完成）
+- **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ CLI
 - **Repository safety boundary:** Required
 - **Preferred local Python:** 3.12 (3.11+ acceptable)
 - **Primary coding agent:** Claude Code
@@ -45,11 +45,18 @@
 - [x] Phase 2：Pipeline 控制器（`controller/pipeline.py`，单步失败不中断）
 - [x] Phase 2：CLI `--phase2 / --rebuild-db / --db-path`；版本 0.3.0a1
 - [x] Phase 2：测试套件（+65 测试，全离线 mock）
+- [x] Phase 3：分析数据模型与配置（`analysis/models.py`、`AnalysisConfig`/`ReportConfig`）
+- [x] Phase 3：SQLite claims / claim_evidence 两表 + 历史窗口查询
+- [x] Phase 3：4 分析师 Agent（Competitor / Market / Technology / Risk）+ 确定性指数 CAI / MMI / THI / RSI
+- [x] Phase 3：历史比较 7 项趋势指标（`analysis/historical.py`）
+- [x] Phase 3：汇聚引擎与证据覆盖率（`analysis/engine.py`）
+- [x] Phase 3：Pipeline 注入与 CLI `--phase3`；版本 0.4.0a1
+- [x] Phase 3：测试套件（+~100 测试，全离线 mock）
 
 ## 尚未开始
 
 - [ ] GitHub 远端仓库绑定
-- [ ] Phase 2+：真实搜索 API 接入（搜索源仍为 RSS）
-- [ ] Phase 3：报告生成（Markdown / Excel）
-- [ ] Phase 3：通知推送（微信）
+- [ ] 真实搜索 API 接入（搜索源仍为 RSS）
+- [ ] Phase 4：报告生成（Markdown / Excel / 微信摘要）
+- [ ] Phase 4：Review Agent（7 项检查、矛盾检测）
 - [ ] 采集规模扩大与运行调度优化

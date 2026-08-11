@@ -49,6 +49,31 @@ class LLMConfig:
 
 
 @dataclass
+class AnalysisConfig:
+    """竞争情报分析参数（config/system.yaml -> analysis）。
+
+    enabled_dimensions：启用维度（competitor/market/technology/risk）。
+    comparison_windows：历史比较窗口（周），如 [1, 4, 12, 52]。
+    confidence_threshold：关键 Claim 的置信度门槛。
+    """
+
+    enabled_dimensions: list[str] = field(
+        default_factory=lambda: ["competitor", "market", "technology", "risk"]
+    )
+    comparison_windows: list[int] = field(default_factory=lambda: [1, 4, 12, 52])
+    confidence_threshold: float = 0.5
+
+
+@dataclass
+class ReportConfig:
+    """报告生成开关（config/system.yaml -> report，Phase 4 启用）。"""
+
+    markdown: bool = True
+    excel: bool = True
+    wechat_digest: bool = True
+
+
+@dataclass
 class SystemConfig:
     """系统级配置。"""
 
@@ -58,6 +83,8 @@ class SystemConfig:
     storage: StorageConfig = field(default_factory=StorageConfig)
     quality: QualityConfig = field(default_factory=QualityConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
+    report: ReportConfig = field(default_factory=ReportConfig)
 
 
 @dataclass

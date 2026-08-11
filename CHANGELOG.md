@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v0.4.0a1 — 2026-08-11
+
+### Phase 3：竞争情报分析
+
+- **分析数据模型**：`analysis/models.py` — `Claim` / `ClaimEvidence` / `IndexScore` / `TrendIndicator` / `AnalysisResult`；确定性 `claim_id`（sha256(文本|维度|run)[:16]）；`claim_type` / `evidence_role` 取值与 SQLite CHECK 一致。
+- **配置扩展**：`system.yaml` 启用 `analysis`（启用维度 / 比较窗口 / 置信度门槛）与 `report`（Phase 4 用）段；`config/models.py` 新增 `AnalysisConfig`、`ReportConfig`。
+- **SQLite 扩展**：新增 `claims` / `claim_evidence` 两表（证据链可追溯，CHECK 强制 document_id 或 observation_id 至少其一）；`query_events_in_range` / `query_observations_in_range` / `query_events_by_entity` / `count_events_by_type` 等历史查询方法；runs 表记录 `analysis_claims` / `evidence_coverage`。
+- **4 个分析师 Agent**：`analysis/{competitor,market,technology,risk}.py` — LLM 结构化输出合成结论 + 确定性内部指数（CAI 竞争活动度 / MMI 市场动量 / THI 技术热度 / RSI 风险信号），指数纯 SQL 聚合 + 权重公式，无 LLM 也可计算。
+- **证据链保证**：分析师过滤 LLM 引用的证据 ID（valid 集合）+ 窗口真实文档兜底，每条 Claim 至少一条 Evidence。
+- **历史比较**：`analysis/historical.py` — 5 个比较窗口（current/last/4w/12w/52w）+ 7 项趋势指标三点比较（事件流速 / 声量占比 / 重大项目增长 / 技术热度 / 价格 / 渠道 / 风险频次）。
+- **汇聚引擎**：`analysis/engine.py` — 编排全部启用维度（独立失败不中断）、持久化 Claim/Evidence、计算证据覆盖率（有证据 Claim / 全部 Claim）。
+- **Pipeline / CLI**：`--phase3`（需同时指定 `--phase2`）注入 `AnalysisEngine`；`RunResult` 增加 `analysis_results` / `analysis_claims` / `evidence_coverage` / `trends`；`--validate` 校验分析维度。
+- **测试**：新增 ~100 个测试（分析模型 / 基类 / 4 分析师 / 历史比较 / 汇聚引擎单测 + Phase 3 端到端集成测试，全离线 mock）。
+
 ## v0.3.0a1 — 2026-08-11
 
 ### Phase 2：事件与指标抽取

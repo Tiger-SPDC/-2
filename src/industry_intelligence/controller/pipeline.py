@@ -9,6 +9,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from industry_intelligence.analysis.engine import AnalysisEngine, EngineResult
+from industry_intelligence.analysis.models import AnalysisResult, TrendIndicator
 from industry_intelligence.collectors import SearchPlanner
 from industry_intelligence.config.models import SystemConfig, TaskConfig, TopicProfile
 from industry_intelligence.core.document import NormalizedDocument
@@ -33,6 +35,10 @@ class RunResult:
     documents_deduped: int = 0
     events_created: int = 0
     observations_extracted: int = 0
+    analysis_results: list[AnalysisResult] = field(default_factory=list)
+    analysis_claims: int = 0
+    evidence_coverage: float = 0.0
+    trends: dict[str, list[TrendIndicator]] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
 
@@ -54,6 +60,7 @@ class Pipeline:
         planner: SearchPlanner | None = None,
         dedup: Deduplicator | None = None,
         event_clusterer: EventClusterer | None = None,
+        analysis_engine: AnalysisEngine | None = None,
     ) -> None:
         self._topic = topic
         self._task = task
@@ -67,6 +74,8 @@ class Pipeline:
         self._planner = planner or SearchPlanner()
         self._dedup = dedup if dedup is not None else Deduplicator()
         self._clusterer = event_clusterer or EventClusterer()
+        # None → 跳过分析阶段（Phase 3 之前行为完全一致）
+        self._analysis_engine = analysis_engine
 
     def run(self) -> RunResult:
         run_id = uuid.uuid4().hex[:16]
@@ -119,6 +128,9 @@ class Pipeline:
         except Exception as exc:  # noqa: BLE001
             result.errors.append(f"persist: {exc}")
 
+        if self._analysis_engine is not None:
+            self._run_analysis(run_id, result)
+
         result.status = _final_status(result)
         try:
             self._sqlite.complete_run(
@@ -128,11 +140,30 @@ class Pipeline:
                 documents_deduped=result.documents_deduped,
                 events_created=result.events_created,
                 observations_extracted=result.observations_extracted,
+                analysis_claims=result.analysis_claims,
+                evidence_coverage=result.evidence_coverage,
                 errors=result.errors,
             )
         except Exception as exc:  # noqa: BLE001
             result.errors.append(f"run complete: {exc}")
         return result
+
+    def _run_analysis(self, run_id: str, result: RunResult) -> EngineResult | None:
+        """执行 Phase 3 分析：编排分析师、持久化 Claim、计算覆盖率。"""
+        engine = self._analysis_engine
+        if engine is None:
+            return None
+        try:
+            analysis = engine.run(run_id)
+        except Exception as exc:  # noqa: BLE001 — 分析失败不中断整体
+            result.errors.append(f"analysis engine: {exc}")
+            return None
+        result.analysis_results = analysis.results
+        result.analysis_claims = analysis.analysis_claims
+        result.evidence_coverage = analysis.evidence_coverage
+        result.trends = analysis.trends
+        result.errors.extend(analysis.errors)
+        return analysis
 
     def _collect(self, result: RunResult) -> list[NormalizedDocument]:
         """执行搜索计划并采集去重，写入 JSONL。"""

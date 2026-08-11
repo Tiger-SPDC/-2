@@ -30,8 +30,16 @@ llm:
   temperature: 0.1
   max_tokens: 4096
 
-# Phase 3+ 再启用：
-# report:
-#   markdown: true
-#   excel: true
-#   wechat_digest: true
+# 竞争情报分析（Phase 3 启用）
+# enabled_dimensions：启用维度；comparison_windows：历史比较窗口（周）
+# confidence_threshold：关键 Claim 置信度门槛
+analysis:
+  enabled_dimensions: [competitor, market, technology, risk]
+  comparison_windows: [1, 4, 12, 52]
+  confidence_threshold: 0.5
+
+# 报告生成开关（Phase 4 启用）
+report:
+  markdown: true
+  excel: true
+  wechat_digest: true

@@ -5,6 +5,7 @@
   python main.py --validate                        校验全部配置
   python main.py --topic <id> --task <id> [--output <jsonl>]          运行采集链路
   python main.py --topic <id> --task <id> --phase2 [--rebuild-db]    完整分析链路
+  python main.py --topic <id> --task <id> --phase2 --phase3          Phase 2+3（竞争情报分析）
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -34,6 +36,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--task", help="Task id")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="输出 JSONL 路径")
     parser.add_argument("--phase2", action="store_true", help="运行 Phase 2 完整分析链路")
+    parser.add_argument(
+        "--phase3", action="store_true",
+        help="在 Phase 2 基础上运行 Phase 3 竞争情报分析（需同时指定 --phase2）",
+    )
     parser.add_argument("--rebuild-db", action="store_true", help="重建 SQLite（删除全部业务表）")
     default_db = str(PROJECT_ROOT / "data" / "state" / "industry_intelligence.sqlite")
     parser.add_argument("--db-path", default=default_db, help="SQLite 路径")
@@ -48,8 +54,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.topic and args.task:
         if args.phase2:
             return _cmd_run_phase2(
-                args.topic, args.task, args.output, args.db_path, args.rebuild_db
+                args.topic, args.task, args.output, args.db_path, args.rebuild_db,
+                phase3=args.phase3,
             )
+        if args.phase3:
+            print("--phase3 需要同时指定 --phase2；本次仅运行采集链路。")
         return _cmd_run(args.topic, args.task, args.output)
 
     parser.print_help()
@@ -69,7 +78,8 @@ def _cmd_validate() -> int:
 
     errors: list[str] = []
     try:
-        load_system_config(CONFIG_DIR / "system.yaml")
+        sys_cfg = load_system_config(CONFIG_DIR / "system.yaml")
+        _validate_analysis_dimensions(sys_cfg, errors)
     except ConfigError as exc:
         errors.append(str(exc))
     try:
@@ -111,6 +121,17 @@ def _cmd_validate() -> int:
         return 1
     print(f"Validation OK: {len(topics)} topic(s), {task_count} task(s)")
     return 0
+
+
+def _validate_analysis_dimensions(sys_cfg: Any, errors: list[str]) -> None:
+    """校验 analysis.enabled_dimensions 均为已知分析维度。"""
+    from industry_intelligence.analysis.models import ANALYSIS_TYPES
+
+    for dim in sys_cfg.analysis.enabled_dimensions:
+        if dim not in ANALYSIS_TYPES:
+            errors.append(
+                f"analysis.enabled_dimensions contains unknown dimension {dim!r}"
+            )
 
 
 def _cmd_run(topic_id: str, task_id: str, output: str) -> int:
@@ -174,9 +195,13 @@ def _cmd_run(topic_id: str, task_id: str, output: str) -> int:
 
 
 def _cmd_run_phase2(
-    topic_id: str, task_id: str, output: str, db_path: str, rebuild_db: bool
+    topic_id: str, task_id: str, output: str, db_path: str, rebuild_db: bool,
+    phase3: bool = False,
 ) -> int:
-    """执行 Phase 2 完整链路（采集 + 实体/事件/观测 + SQLite 持久化）。"""
+    """执行 Phase 2 完整链路（采集 + 实体/事件/观测 + SQLite 持久化）。
+
+    phase3=True 时追加 Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较）。
+    """
     from industry_intelligence.collectors import SearchPlanner
     from industry_intelligence.config.loader import (
         ConfigError,
@@ -222,6 +247,30 @@ def _cmd_run_phase2(
         sqlite_store.rebuild()
         print(f"SQLite rebuilt: {db_path}")
 
+    analysis_engine = None
+    if phase3:
+        from industry_intelligence.analysis.engine import AnalysisEngine
+        from industry_intelligence.analysis.models import (
+            ANALYSIS_COMPETITOR,
+            ANALYSIS_MARKET,
+            ANALYSIS_RISK,
+            ANALYSIS_TECHNOLOGY,
+        )
+
+        analysis_engine = AnalysisEngine(
+            provider=provider,
+            sqlite_store=sqlite_store,
+            topic=topic,
+            task=task,
+            prompts={
+                ANALYSIS_COMPETITOR: load_prompt("competitor_analysis", CONFIG_DIR),
+                ANALYSIS_MARKET: load_prompt("market_analysis", CONFIG_DIR),
+                ANALYSIS_TECHNOLOGY: load_prompt("technology_analysis", CONFIG_DIR),
+                ANALYSIS_RISK: load_prompt("risk_analysis", CONFIG_DIR),
+            },
+            analysis_config=sys_cfg.analysis,
+        )
+
     resolver = EntityResolver(topic)
     classifier = EventClassifier(
         provider=provider,
@@ -245,16 +294,23 @@ def _cmd_run_phase2(
         observation_extractor=extractor,
         planner=SearchPlanner(),
         event_clusterer=EventClusterer(),
+        analysis_engine=analysis_engine,
     )
 
     result = pipeline.run()
-    print(
+    summary = (
         f"Run {result.run_id} [{result.status}]: "
         f"{result.documents_collected} doc(s), "
         f"{result.documents_deduped} dup(s), "
         f"{result.events_created} event(s), "
         f"{result.observations_extracted} observation(s)"
     )
+    if phase3:
+        summary += (
+            f", {result.analysis_claims} claim(s), "
+            f"evidence coverage {result.evidence_coverage:.0%}"
+        )
+    print(summary)
     for msg in result.errors:
         print(f"  ! {msg}")
     print(f"Output: {jsonl_store.path}")

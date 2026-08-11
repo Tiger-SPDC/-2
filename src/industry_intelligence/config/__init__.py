@@ -9,10 +9,12 @@ from industry_intelligence.config.loader import (
     resolve_task,
 )
 from industry_intelligence.config.models import (
+    AnalysisConfig,
     CollectionConfig,
     CompanyEntity,
     LLMConfig,
     QualityConfig,
+    ReportConfig,
     StorageConfig,
     SystemConfig,
     TaskConfig,
@@ -26,11 +28,13 @@ from industry_intelligence.config.models import (
 )
 
 __all__ = [
+    "AnalysisConfig",
     "CollectionConfig",
     "CompanyEntity",
     "ConfigError",
     "LLMConfig",
     "QualityConfig",
+    "ReportConfig",
     "StorageConfig",
     "SystemConfig",
     "TaskConfig",

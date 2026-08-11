@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from industry_intelligence.config.models import (
+    AnalysisConfig,
     CollectionConfig,
     CompanyEntity,
     LLMConfig,
+    ReportConfig,
     SystemConfig,
     TaskOverrides,
     TaskWindow,
@@ -60,3 +62,17 @@ def test_system_config_has_llm_default() -> None:
     sys_cfg = SystemConfig()
     assert sys_cfg.llm.provider == "deepseek"
     assert sys_cfg.llm.api_key_env == "DEEPSEEK_API_KEY"
+
+
+def test_analysis_config_defaults() -> None:
+    cfg = AnalysisConfig()
+    assert cfg.enabled_dimensions == ["competitor", "market", "technology", "risk"]
+    assert cfg.comparison_windows == [1, 4, 12, 52]
+    assert cfg.confidence_threshold == 0.5
+
+
+def test_report_config_defaults() -> None:
+    cfg = ReportConfig()
+    assert cfg.markdown is True
+    assert cfg.excel is True
+    assert cfg.wechat_digest is True

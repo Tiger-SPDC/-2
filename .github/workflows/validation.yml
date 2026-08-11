@@ -1,0 +1,39 @@
+name: Config Validation
+
+# 每日校验全部配置（Topic/Task/schedules），失败时推送微信告警。
+# 北京 10:47 = UTC 02:47（避开整点高负载）。
+
+on:
+  schedule:
+    - cron: "47 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: config-validation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Validate config
+        run: |
+          python main.py --validate
+          python scheduler.py --validate-schedules
+
+      - name: Notify failure
+        if: failure()
+        env:
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+        run: python scripts/notify_failure.py

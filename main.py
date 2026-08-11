@@ -50,6 +50,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rebuild-db", action="store_true", help="重建 SQLite（删除全部业务表）")
     default_db = str(PROJECT_ROOT / "data" / "state" / "industry_intelligence.sqlite")
     parser.add_argument("--db-path", default=default_db, help="SQLite 路径")
+    # Phase 5：manual_run 工作流覆盖参数（patch 已解析的 Task 配置，不落库）
+    parser.add_argument("--days", type=int, default=None, help="覆盖时间窗口（天）")
+    parser.add_argument("--regions", default=None, help="覆盖采集地区（逗号分隔）")
+    parser.add_argument("--companies", default=None, help="覆盖关注企业（逗号分隔）")
+    parser.add_argument("--focus", default=None, help="覆盖核心词（逗号分隔）")
+    parser.add_argument(
+        "--depth", choices=["quick", "standard", "deep"], default=None,
+        help="覆盖采集深度",
+    )
+    parser.add_argument(
+        "--notify", choices=["true", "false"], default=None,
+        help="覆盖是否推送微信摘要",
+    )
 
     args = parser.parse_args(argv)
 
@@ -66,12 +79,18 @@ def main(argv: list[str] | None = None) -> int:
                 args.topic, args.task, args.output, args.db_path, args.rebuild_db,
                 phase3=args.phase3, phase4=args.phase4 and args.phase3,
                 report_dir=args.report_dir,
+                days=args.days, regions=args.regions, companies=args.companies,
+                focus=args.focus, depth=args.depth, notify=args.notify,
             )
         if args.phase3:
             print("--phase3 需要同时指定 --phase2；本次仅运行采集链路。")
         if args.phase4:
             print("--phase4 需要同时指定 --phase2 --phase3；本次仅运行采集链路。")
-        return _cmd_run(args.topic, args.task, args.output)
+        return _cmd_run(
+            args.topic, args.task, args.output,
+            days=args.days, regions=args.regions, companies=args.companies,
+            focus=args.focus, depth=args.depth, notify=args.notify,
+        )
 
     parser.print_help()
     return 0
@@ -146,7 +165,46 @@ def _validate_analysis_dimensions(sys_cfg: Any, errors: list[str]) -> None:
             )
 
 
-def _cmd_run(topic_id: str, task_id: str, output: str) -> int:
+def _apply_task_overrides(
+    task: Any,
+    *,
+    days: int | None = None,
+    regions: str | None = None,
+    companies: str | None = None,
+    focus: str | None = None,
+    depth: str | None = None,
+    notify: str | None = None,
+) -> None:
+    """用 CLI 覆盖参数 patch 已解析的 TaskConfig（Phase 5 manual_run 工作流）。
+
+    覆盖参数均来自命令行，非配置硬编码；未提供的项保持原值。
+    """
+    from industry_intelligence.config.models import TaskOverrides
+
+    if days is not None:
+        task.window.days = days
+    if regions or companies or focus:
+        overrides = task.overrides if task.overrides is not None else TaskOverrides()
+        if regions:
+            overrides.regions = [r.strip() for r in regions.split(",") if r.strip()]
+        if companies:
+            overrides.companies = [c.strip() for c in companies.split(",") if c.strip()]
+        if focus:
+            overrides.focus = [f.strip() for f in focus.split(",") if f.strip()]
+        task.overrides = overrides
+    if depth is not None:
+        task.output.depth = depth
+    if notify is not None:
+        task.output.notify = notify == "true"
+
+
+def _cmd_run(
+    topic_id: str, task_id: str, output: str,
+    *,
+    days: int | None = None, regions: str | None = None,
+    companies: str | None = None, focus: str | None = None,
+    depth: str | None = None, notify: str | None = None,
+) -> int:
     """执行最小可用采集链路。"""
     from industry_intelligence.collectors import SearchPlanner
     from industry_intelligence.config.loader import (
@@ -167,6 +225,11 @@ def _cmd_run(topic_id: str, task_id: str, output: str) -> int:
     except ConfigError as exc:
         print(f"Config error: {exc}")
         return 1
+
+    _apply_task_overrides(
+        task, days=days, regions=regions, companies=companies,
+        focus=focus, depth=depth, notify=notify,
+    )
 
     plans = SearchPlanner().generate_plans(topic, task)
     print(f"Planner: {len(plans)} query plan(s) for topic '{topic.id}'")
@@ -210,6 +273,9 @@ def _cmd_run_phase2(
     topic_id: str, task_id: str, output: str, db_path: str, rebuild_db: bool,
     phase3: bool = False, phase4: bool = False,
     report_dir: str | None = None,
+    days: int | None = None, regions: str | None = None,
+    companies: str | None = None, focus: str | None = None,
+    depth: str | None = None, notify: str | None = None,
 ) -> int:
     """执行 Phase 2 完整链路（采集 + 实体/事件/观测 + SQLite 持久化）。
 
@@ -241,6 +307,11 @@ def _cmd_run_phase2(
     except ConfigError as exc:
         print(f"Config error: {exc}")
         return 1
+
+    _apply_task_overrides(
+        task, days=days, regions=regions, companies=companies,
+        focus=focus, depth=depth, notify=notify,
+    )
 
     try:
         provider = DeepSeekProvider(sys_cfg.llm)

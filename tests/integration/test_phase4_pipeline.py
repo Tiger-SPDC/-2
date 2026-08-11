@@ -253,3 +253,26 @@ def test_review_failure_does_not_block_reports(
     assert any("review boom" in e for e in result.errors)
     assert result.report_paths.get("markdown")
     assert result.status == "partial"
+
+
+def test_notify_gate_respects_output_notify_false(
+    tmp_path, rss_fixture, sample_topic, sample_task
+) -> None:
+    # Phase 5：task.output.notify=False 时不推送，但报告照常生成
+    import dataclasses
+
+    from industry_intelligence.config.models import TaskOutput
+
+    task = dataclasses.replace(sample_task, output=TaskOutput(notify=False))
+    provider = ScriptedProvider(event_type="new_product", observations=SAMPLE_OBS)
+    notifier = FakeNotifier()
+    pipeline, _ = _build_pipeline(
+        tmp_path, rss_fixture, sample_topic, task, provider, notifier
+    )
+
+    result = pipeline.run()
+
+    assert result.status == "success"
+    assert result.notification_sent is False
+    assert notifier.sent == []
+    assert result.report_paths.get("markdown")  # 报告不受 notify 影响

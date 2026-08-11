@@ -1,10 +1,10 @@
 # PROJECT_STATUS
 
 - **Project:** Industry Intelligence Agent
-- **Version:** v0.5.0a1
+- **Version:** v0.6.0a1
 - **Date:** 2026-08-11
-- **Current phase:** Phase 4（质量审查 + 报告生成 + 通知推送已完成）
-- **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ Phase 4（Review Agent 7 项检查 + Markdown·Excel·微信摘要报告 + 数据质量章节 + Server酱通知）/ CLI
+- **Current phase:** Phase 5（GitHub 全自动运行已实现，待真实端到端验收）
+- **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ Phase 4（Review Agent 7 项检查 + Markdown·Excel·微信摘要报告 + 数据质量章节 + Server酱通知）/ Phase 5（通用调度器 + 4 个 GitHub Actions 工作流 + auto-commit + Artifact + 失败通知 + retry）/ CLI
 - **Repository safety boundary:** Required
 - **Preferred local Python:** 3.12 (3.11+ acceptable)
 - **Primary coding agent:** Claude Code
@@ -61,9 +61,15 @@
 - [x] Phase 4：通知推送层（`NotificationAdapter` ABC + `ServerChanAdapter`，SendKey 环境变量注入）
 - [x] Phase 4：Pipeline 三 stage 集成（Review → Reporting → Notification）+ CLI `--phase4 / --report-dir`；版本 0.5.0a1
 - [x] Phase 4：测试套件（+46 测试，全离线 mock）
+- [x] Phase 5：通用调度器（`ops/scheduler.py` + 根级 `scheduler.py`，schedules.yaml / 幂等状态 / 失败重试）
+- [x] Phase 5：CLI 覆盖参数（`--days/--regions/--companies/--focus/--depth/--notify`）+ notify 门修复
+- [x] Phase 5：GitHub Actions 工作流（scheduled_dispatcher / manual_run / validation / maintenance，含 auto-commit + Artifact + 失败通知）
+- [x] Phase 5：失败告警与维护脚本（notify_failure.py / maintenance.py）；`.gitignore` 放行积累数据提交；版本 0.6.0a1
+- [x] Phase 5：测试套件（+24 测试，全离线 mock）
 
 ## 尚未开始
 
-- [ ] GitHub 远端仓库绑定
+- [ ] GitHub 远端仓库绑定（验收前置：`git remote add` + Secrets 配置）
+- [ ] 真实端到端验收（需 DEEPSEEK_API_KEY + SERVERCHAN_KEY 做首次全链路真实验证）
 - [ ] 真实搜索 API 接入（搜索源仍为 RSS）
 - [ ] 采集规模扩大与运行调度优化

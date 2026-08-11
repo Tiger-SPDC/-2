@@ -1,0 +1,25 @@
+# 通用调度注册表（Phase 5：GitHub 全自动运行）
+#
+# scheduler.py 读取本文件，按 cadence 判断今天哪些任务到期并依次执行。
+# 时区：system.yaml -> system.timezone（默认 Asia/Shanghai）。
+#
+# cadence:
+#   daily   → 每天 local_time 运行
+#   weekly  → 指定 weekday + local_time 运行
+#   monthly → 指定 day + local_time 运行
+#
+# weekday: Python date.weekday() 约定，0=周一 … 6=周日（仅 cadence=weekly）
+# day: 每月几号运行，1-31（仅 cadence=monthly，超过当月天数则当月跳过）
+# local_time: "HH:MM"，Asia/Shanghai 本地时间（GitHub cron 已换算为 UTC）
+#
+# depth:  quick | standard | deep   → 覆盖任务默认采集深度（Phase 5 起透传）
+# notify: true | false              → 是否推送微信摘要（覆盖任务默认，与 main.py --notify 一致）
+
+schedules:
+  charging_cn_weekly:
+    task_id: charging_cn_weekly
+    cadence: weekly
+    weekday: 1              # 每周一
+    local_time: "08:17"
+    depth: standard
+    notify: true

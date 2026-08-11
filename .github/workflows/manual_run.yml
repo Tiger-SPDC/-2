@@ -1,0 +1,122 @@
+name: Manual Run
+
+# 手动触发完整链路（workflow_dispatch）。
+# 输入在程序层校验（main.py --validate 语义），不在 workflow 层写死业务规则。
+# 覆盖参数以逗号分隔（不加空格），例如：中国,德国
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: 任务 id（config/tasks/<id>.yaml，程序层校验）
+        required: true
+        type: string
+        default: charging_cn_weekly
+      topic_id:
+        description: Topic id（可选；缺省读取任务配置）
+        required: false
+        type: string
+      days:
+        description: 时间窗口（天）
+        required: false
+        type: number
+      regions:
+        description: 覆盖地区（逗号分隔，不加空格）
+        required: false
+        type: string
+      companies:
+        description: 覆盖企业（逗号分隔，不加空格）
+        required: false
+        type: string
+      focus:
+        description: 覆盖核心词（逗号分隔，不加空格）
+        required: false
+        type: string
+      depth:
+        description: 采集深度
+        required: false
+        type: choice
+        options: [standard, quick, deep]
+        default: standard
+      notify:
+        description: 推送微信摘要
+        required: false
+        type: boolean
+        default: true
+      force:
+        description: 忽略上次运行记录（同一天已运行过时使用）
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: industry-intelligence-run
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Run full pipeline
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+          TZ: Asia/Shanghai
+        run: |
+          set -euo pipefail
+          TOPIC="${{ inputs.topic_id }}"
+          if [ -z "$TOPIC" ]; then
+            TOPIC="$(python -c \
+              "import yaml; d=yaml.safe_load(open('config/tasks/${{ inputs.task_id }}.yaml', encoding='utf-8')); print(d['task']['topic_id'])")"
+          fi
+          ARGS="--topic $TOPIC --task ${{ inputs.task_id }} --phase2 --phase3 --phase4"
+          ARGS="$ARGS --output data/collection.jsonl --db-path data/state/industry_intelligence.sqlite"
+          if [ -n "${{ inputs.days }}" ]; then ARGS="$ARGS --days ${{ inputs.days }}"; fi
+          if [ -n "${{ inputs.regions }}" ]; then ARGS="$ARGS --regions ${{ inputs.regions }}"; fi
+          if [ -n "${{ inputs.companies }}" ]; then ARGS="$ARGS --companies ${{ inputs.companies }}"; fi
+          if [ -n "${{ inputs.focus }}" ]; then ARGS="$ARGS --focus ${{ inputs.focus }}"; fi
+          ARGS="$ARGS --depth ${{ inputs.depth }}"
+          ARGS="$ARGS --notify ${{ inputs.notify }}"
+          python main.py $ARGS
+
+      - name: Commit data and reports
+        run: |
+          git config user.name "industry-intelligence-agent[bot]"
+          git config user.email "agent[bot]@users.noreply.github.com"
+          git add data/state/industry_intelligence.sqlite data/collection.jsonl output/reports 2>/dev/null || true
+          if [ -f data/state/scheduler_state.json ]; then git add data/state/scheduler_state.json; fi
+          if git diff --cached --quiet; then
+            echo "No data changes to commit"
+          else
+            git commit -m "chore(data): manual run outputs"
+            git push
+          fi
+
+      - name: Upload reports as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-reports-${{ github.run_id }}
+          path: |
+            output/reports/
+            data/state/scheduler_state.json
+          retention-days: 30
+
+      - name: Notify failure
+        if: failure()
+        env:
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+        run: python scripts/notify_failure.py

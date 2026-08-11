@@ -154,7 +154,11 @@ class Pipeline:
         if self._report_engine is not None:
             self._run_reporting(run_id, result)
 
-        if self._notification_adapter is not None and result.digest_text:
+        if (
+            self._notification_adapter is not None
+            and self._task.output.notify
+            and result.digest_text
+        ):
             self._run_notification(result)
 
         result.status = _final_status(result)

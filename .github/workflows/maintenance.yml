@@ -1,0 +1,46 @@
+name: Maintenance
+
+# 每周维护：SQLite 健康检查 + 清理过期报告 + 提交状态变更。
+# 北京 10:23 = UTC 02:23，每周六。
+
+on:
+  schedule:
+    - cron: "23 2 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Run maintenance
+        run: python scripts/maintenance.py --prune-report-days 90
+
+      - name: Commit maintenance changes
+        run: |
+          git config user.name "industry-intelligence-agent[bot]"
+          git config user.email "agent[bot]@users.noreply.github.com"
+          git add -A data/state output/reports 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(data): maintenance"
+            git push
+          fi
+
+      - name: Notify failure
+        if: failure()
+        env:
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+        run: python scripts/notify_failure.py

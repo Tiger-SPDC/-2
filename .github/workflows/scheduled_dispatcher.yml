@@ -1,0 +1,83 @@
+name: Scheduled Dispatcher
+
+# 通用调度器：每天触发一次，由 scheduler.py 按 config/schedules.yaml
+# 判断今天哪些任务到期并依次执行。避开整点（北京 08:17 = UTC 00:17，
+# 中国无夏令时，偏移固定为 +8）。
+
+on:
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 忽略上次运行记录，强制执行
+        required: false
+        type: boolean
+        default: false
+      retry:
+        description: 失败任务自动重试次数
+        required: false
+        type: number
+        default: 1
+
+# 与 manual_run 共用同一并发组，避免同一天多次运行写同一 SQLite 发生冲突
+concurrency:
+  group: industry-intelligence-run
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Run due tasks
+        id: run
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+          TZ: Asia/Shanghai
+        run: |
+          EXTRA=""
+          if [ "${{ inputs.force }}" = "true" ]; then EXTRA="--force"; fi
+          python scheduler.py --run-due --retry "${{ inputs.retry || '1' }}" $EXTRA
+
+      - name: Commit data and reports
+        run: |
+          git config user.name "industry-intelligence-agent[bot]"
+          git config user.email "agent[bot]@users.noreply.github.com"
+          git add data/state/industry_intelligence.sqlite data/collection.jsonl output/reports 2>/dev/null || true
+          if [ -f data/state/scheduler_state.json ]; then git add data/state/scheduler_state.json; fi
+          if git diff --cached --quiet; then
+            echo "No data changes to commit"
+          else
+            git commit -m "chore(data): update run outputs"
+            git push
+          fi
+
+      - name: Upload reports as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ github.run_id }}
+          path: |
+            output/reports/
+            data/state/scheduler_state.json
+          retention-days: 30
+
+      - name: Notify failure
+        if: failure()
+        env:
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+        run: python scripts/notify_failure.py

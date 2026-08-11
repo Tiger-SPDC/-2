@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v0.6.0a1 — 2026-08-11
+
+### Phase 5：GitHub 全自动运行
+
+- **通用调度器**：`src/industry_intelligence/ops/scheduler.py` — 读取 `config/schedules.yaml`（cadence：daily/weekly/monthly + weekday/day + local_time + depth + notify），`is_due()` 纯确定性判定；`SchedulerState` 幂等状态（`data/state/scheduler_state.json`，已运行当天不重复触发，`--force` 可覆盖）；`Scheduler.run_due()` 依次调用 `main.py --phase2 --phase3 --phase4` 执行到期任务，失败自动重试（`--retry`）。
+- **根级 CLI**：`scheduler.py` — `--dry-run` / `--run-due` / `--force` / `--retry N` / `--task <id>` / `--validate-schedules`；时区从 `system.yaml` 读取（IANA 解析失败退化为本地时区）。
+- **CLI 覆盖参数**（manual_run 工作流支撑）：`main.py` 新增 `--days / --regions / --companies / --focus / --depth / --notify`，通过 `_apply_task_overrides()` patch 已解析的 Task 配置（不落库），供 GitHub Actions 手动触发时输入。
+- **通知门修复**：Pipeline 现在强制执行 `task.output.notify`（为 false 时不推送微信，但报告照常生成）。
+- **GitHub Actions 工作流**：`scheduled_dispatcher.yml`（每日北京 08:17 = UTC 00:17，跑 `scheduler.py --run-due`）、`manual_run.yml`（workflow_dispatch：task/topic/days/regions/companies/focus/depth/notify/force）、`validation.yml`（每日 `--validate` + `--validate-schedules`，失败微信告警）、`maintenance.yml`（每周 SQLite 完整性检查 + 清理 90 天前报告）。全部含 auto-commit（SQLite + JSONL + 报告 + 调度状态提交回仓库）、Artifact 上传、失败通知。
+- **失败告警脚本**：`scripts/notify_failure.py`（复用 ServerChanAdapter，含 workflow run URL，永不抛出）、`scripts/maintenance.py`（`PRAGMA integrity_check` + 报告清理，DB 未生成不算失败）。
+- **持久化提交策略**：`.gitignore` 放行 `data/state/industry_intelligence.sqlite`（跨运行积累的查询层是历史比较的事实源，必须提交回仓库）；JSONL 审计层与报告随运行提交。
+- **Secrets**：GitHub Secrets `DEEPSEEK_API_KEY` / `SERVERCHAN_KEY`（映射到配置 `llm.api_key_env` / `notification.serverchan_key_env`），日志与报告不输出任何密钥。
+- **测试**：新增 24 个（调度器 load/is_due 边界/状态幂等/run_due 命令构造与重试、CLI 覆盖参数、notify 门集成测试，全离线 mock）；版本升至 0.6.0a1。
+
 ## v0.5.0a1 — 2026-08-11
 
 ### Phase 4：质量审查 + 报告生成 + 通知推送

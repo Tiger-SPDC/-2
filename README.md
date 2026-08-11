@@ -82,13 +82,51 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\mypy src
 ```
 
-## 10. 当前禁止事项
+## 10. GitHub 全自动运行（Phase 5）
+
+### 10.1 本地验证调度器
+
+```powershell
+.\.venv\Scripts\python scheduler.py --validate-schedules   # 校验 config/schedules.yaml
+.\.venv\Scripts\python scheduler.py --dry-run              # 列出今天到期任务
+.\.venv\Scripts\python scheduler.py --run-due --dry-run    # 同上
+```
+
+### 10.2 首次接入步骤（一次性）
+
+1. **推送代码到 GitHub** 并绑定远端：`git remote add origin <你的仓库 URL>` → `git push -u origin main`。
+2. **配置 Secrets**（Settings → Secrets and variables → Actions）：
+   - `DEEPSEEK_API_KEY` — DeepSeek API Key（配置 `llm.api_key_env`）
+   - `SERVERCHAN_KEY` — Server酱 SendKey（配置 `notification.serverchan_key_env`）
+   - 密钥只在 GitHub 端保存，仓库内 `.env.example` 只有变量名，日志/报告不输出密钥。
+3. **手动触发一次**：Actions → `Manual Run` → Run workflow，输入任务 id（默认 `charging_cn_weekly`）。
+4. **验收标准**：无本地电脑参与完成一次全流程（采集 → 分析 → 审查 → 报告），并在微信收到摘要推送。
+
+### 10.3 工作流
+
+| 工作流 | 触发 | 作用 |
+|--------|------|------|
+| `scheduled_dispatcher.yml` | 每日北京 08:17（cron） | 按 `config/schedules.yaml` 运行到期任务，提交数据，上传报告 |
+| `manual_run.yml` | `workflow_dispatch` | 手动跑指定任务，可覆盖地区/企业/核心词/时间窗口 |
+| `validation.yml` | 每日 | `main.py --validate` + `scheduler.py --validate-schedules`，失败微信告警 |
+| `maintenance.yml` | 每周六 | SQLite 完整性检查 + 清理 90 天前报告 |
+
+所有运行共享同一并发组，避免同一天多次写同一 SQLite；失败任务自动重试一次并推送微信告警。
+
+### 10.4 持久化数据
+
+- `data/state/industry_intelligence.sqlite` — 跨运行积累的查询层（历史比较的事实源），随运行提交回仓库。
+- `data/collection.jsonl` — 规范化文档审计层（追加式）。
+- `data/state/scheduler_state.json` — 调度幂等状态（当天已运行不重复触发）。
+- `output/reports/<run_id>/` — 每轮 Markdown / Excel / 微信摘要报告。
+
+## 11. 当前禁止事项
 
 Phase 0 阶段禁止实现：真实爬虫、搜索/新闻/RSS 抓取、SQLite 业务模型、Topic/Task/Source/Evidence Schema、LLM API、Server酱/企业微信、Markdown/Excel 周报、GitHub cron、历史比较、竞争指数、事件聚类、实体识别。
 
 禁止操作：修改项目目录外文件、全局 pip 安装、修改 Windows PATH/注册表/系统环境变量、创建计划任务/系统服务、复用日常浏览器 Profile、在仓库中写入任何 API Key/Token。
 
-## 11. Roadmap
+## 12. Roadmap
 
 - 阶段总览：`ROADMAP.md`
 - 系统总设计：`docs/00_MASTER_PLAN.md`

@@ -1,0 +1,51 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+.secrets/
+*.key
+*.pem
+
+# Local data / caches
+logs/*
+!logs/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
+data/normalized/*
+!data/normalized/.gitkeep
+data/state/local_*
+data/cache/*
+!data/cache/.gitkeep
+*.sqlite
+*.sqlite3
+*.db
+
+# Browser automation profiles
+.playwright/
+browser-profile/
+user-data-dir/
+
+# IDE / OS
+.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Reports generated locally
+reports/generated/
+
+# Temporary
+*.tmp
+*.log

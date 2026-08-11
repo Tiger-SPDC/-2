@@ -86,11 +86,11 @@ def test_load_system_config(project_root: Path) -> None:
 def test_load_llm_config_section(project_root: Path) -> None:
     cfg = load_system_config(project_root / "config" / "system.yaml")
     assert cfg.llm.provider == "deepseek"
-    assert cfg.llm.model == "deepseek-chat"
+    assert cfg.llm.model == "deepseek-v4-flash"
     assert cfg.llm.api_key_env == "DEEPSEEK_API_KEY"
     assert cfg.llm.base_url == "https://api.deepseek.com/v1"
     assert cfg.llm.temperature == 0.1
-    assert cfg.llm.max_tokens == 4096
+    assert cfg.llm.max_tokens == 8192
 
 
 def test_load_analysis_config(project_root: Path) -> None:

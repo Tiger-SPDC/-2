@@ -22,13 +22,16 @@ quality:
   reject_untraceable_numbers: true
 
 # LLM 接入（Phase 2 启用；API Key 通过环境变量注入，不落库）
+# model 以账号可用模型为准（`models.list()` 实测为 deepseek-v4-flash / deepseek-v4-pro）
 llm:
   provider: deepseek
-  model: deepseek-chat
+  model: deepseek-v4-flash
   api_key_env: DEEPSEEK_API_KEY
   base_url: https://api.deepseek.com/v1
   temperature: 0.1
-  max_tokens: 4096
+  # deepseek-v4-flash 为推理模型：复杂分析 prompt（technology/review）会先消耗大量
+  # reasoning_tokens 再产出内容，4096 会被推理耗尽导致空/截断 JSON，故放大到 8192。
+  max_tokens: 8192
 
 # 竞争情报分析（Phase 3 启用）
 # enabled_dimensions：启用维度；comparison_windows：历史比较窗口（周）

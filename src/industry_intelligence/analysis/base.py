@@ -103,11 +103,15 @@ class AnalysisAgent(ABC):
     # ------------------------------------------------------------------ 助手
 
     def _build_messages(self, prompt: str) -> list[dict[str, str]]:
-        """构建 LLM 消息列表（system = 模板，user = 本次输入）。"""
-        return [
-            {"role": "system", "content": self._prompt_template},
-            {"role": "user", "content": prompt},
-        ]
+        """构建 LLM 消息列表（单条 user = 模板 + 本次输入）。
+
+        DeepSeek json_object 模式只检查 user 消息；与分类器/提取器一致，
+        模板与数据合并进同一 user 消息，模型才能按 schema 输出结构。
+        """
+        content = (
+            f"{self._prompt_template}\n\n{prompt}" if self._prompt_template else prompt
+        )
+        return [{"role": "user", "content": content}]
 
     def _claim_id(self, claim_text: str, run_id: str) -> str:
         """确定性 claim_id：sha256(claim_text|analysis_type|run_id)[:16]。"""
@@ -119,11 +123,19 @@ class AnalysisAgent(ABC):
         json_schema: dict[str, object],
         errors: list[str],
     ) -> dict[str, object]:
-        """调用 LLM 结构化输出；失败返回 {} 并记录错误，不抛出。"""
+        """调用 LLM 结构化输出；失败返回 {} 并记录错误，不抛出。
+
+        模板合并进 user 消息（与分类器/提取器的单条 user 模式一致）：
+        此前模板存于 ``_prompt_template`` 却从未注入请求，模型只收到裸数据，
+        无法按要求输出 claims 结构（DeepSeek json_object 也只检查 user 消息）。
+        """
         if self._provider is None:
             return {}
+        user_prompt = prompt
+        if self._prompt_template:
+            user_prompt = f"{self._prompt_template}\n\n{prompt}"
         try:
-            return self._provider.generate_structured(prompt, json_schema)
+            return self._provider.generate_structured(user_prompt, json_schema)
         except LLMError as exc:
             errors.append(f"{self.analysis_type}: {exc}")
             return {}

@@ -186,3 +186,16 @@ def test_missing_reviews_array_recorded_error(make_doc, sample_topic, sample_tas
     result = _agent(store, _provider({"unexpected": "payload"})).review("r1")
     assert any("reviews 数组" in e for e in result.errors)
     assert store.query_claim_reviews("r1") == []
+
+
+def test_generate_structured_merges_template(make_doc, sample_topic, sample_task) -> None:
+    """review.md 模板必须合并进 user 消息（DeepSeek json_object 只检查 user）。"""
+    store = _seed_store(make_doc)
+    provider = mock.Mock(spec=LLMProvider)
+    provider.generate_structured.return_value = {"reviews": []}
+    agent = _agent(store, provider)
+    errors: list[str] = []
+    agent._generate_structured_safe("数据", errors)
+    sent_prompt = provider.generate_structured.call_args.args[0]
+    assert sent_prompt.startswith(agent._prompt_template)
+    assert "数据" in sent_prompt

@@ -45,8 +45,17 @@ def test_agent_construction(sample_topic, sample_task) -> None:
 def test_build_messages(sample_topic, sample_task) -> None:
     agent = _agent(sample_topic, sample_task)
     messages = agent._build_messages("输入数据")
-    assert messages[0] == {"role": "system", "content": "模板"}
-    assert messages[1] == {"role": "user", "content": "输入数据"}
+    # 单条 user：模板 + 输入数据（DeepSeek json_object 只检查 user 消息）
+    assert len(messages) == 1
+    assert messages[0]["role"] == "user"
+    assert messages[0]["content"] == "模板\n\n输入数据"
+
+
+def test_build_messages_no_template(sample_topic, sample_task) -> None:
+    agent = _agent(sample_topic, sample_task)
+    agent._prompt_template = ""
+    messages = agent._build_messages("输入数据")
+    assert messages == [{"role": "user", "content": "输入数据"}]
 
 
 def test_claim_id_deterministic(sample_topic, sample_task) -> None:
@@ -142,6 +151,21 @@ def test_generate_structured_safe_none_provider(sample_topic, sample_task) -> No
     agent = _agent(sample_topic, sample_task, provider=None)
     errors: list[str] = []
     assert agent._generate_structured_safe("p", {"type": "object"}, errors) == {}
+
+
+def test_generate_structured_safe_merges_template(sample_topic, sample_task) -> None:
+    from unittest import mock
+
+    from industry_intelligence.llm.provider import LLMProvider
+
+    provider = mock.Mock(spec=LLMProvider)
+    provider.generate_structured.return_value = {"claims": []}
+    agent = _agent(sample_topic, sample_task, provider=provider)
+    errors: list[str] = []
+    agent._generate_structured_safe("数据", {"type": "object"}, errors)
+    sent_prompt = provider.generate_structured.call_args.args[0]
+    # 模板 + 数据 合并进同一条 user 消息（DeepSeek json_object 只检查 user）
+    assert sent_prompt == "模板\n\n数据"
     assert errors == []
 
 

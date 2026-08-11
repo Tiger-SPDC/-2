@@ -50,6 +50,25 @@ def test_insert_query_document(make_doc) -> None:
     assert rows[0]["matched_entities"] == '["特来电"]'
 
 
+def test_reinsert_document_preserves_evidence_links(make_doc) -> None:
+    """回归：INSERT OR REPLACE 会 DELETE+INSERT，触发 claim_evidence.document_id
+    ON DELETE SET NULL，observation_id 也为空时违反 CHECK。upsert 原地更新，
+    不得抛错且证据链接保留。"""
+    store = SQLiteStore(":memory:")
+    store.insert_document(make_doc(document_id="d1", title="标题"))
+    store.insert_run("r1", "t1", "tk1", "2026-08-01T00:00:00+00:00")
+    store.insert_claim(
+        "c1", "结论", "fact", 0.9, "competitor", "t1", "r1"
+    )
+    store.insert_claim_evidence("c1", document_id="d1")
+    # 模拟重采集：同一 document_id 再次写入（之前会触发 CHECK 约束失败）
+    store.insert_document(make_doc(document_id="d1", title="标题"))
+    ev = store.query_claim_evidence("c1")
+    assert len(ev) == 1
+    assert ev[0]["document_id"] == "d1"
+    assert ev[0]["observation_id"] is None
+
+
 def test_insert_entity_with_aliases() -> None:
     store = SQLiteStore(":memory:")
     store.insert_entity("特来电", "特来电", ["特来电新能源", "TLD"], topic_id="t1")

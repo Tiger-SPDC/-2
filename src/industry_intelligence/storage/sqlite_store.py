@@ -194,15 +194,37 @@ class SQLiteStore:
     # ------------------------------------------------------------------ 写入
 
     def insert_document(self, doc: NormalizedDocument) -> None:
+        # 用 upsert（ON CONFLICT DO UPDATE）而非 INSERT OR REPLACE：
+        # REPLACE 是 DELETE+INSERT，会触发 claim_evidence.document_id 的
+        # ON DELETE SET NULL，若该证据行 observation_id 也为空则违反 CHECK
+        # （document_id IS NOT NULL OR observation_id IS NOT NULL）。
         with self._conn:
             self._conn.execute(
                 """
-                INSERT OR REPLACE INTO documents (
+                INSERT INTO documents (
                     document_id, canonical_url, source_id, title, content_text,
                     content_hash, url_hash, source_grade, topic_id, fetched_at,
                     published_at, author, language, summary, matched_entities,
                     matched_keywords, raw_type, parser_version
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(document_id) DO UPDATE SET
+                    canonical_url = excluded.canonical_url,
+                    source_id = excluded.source_id,
+                    title = excluded.title,
+                    content_text = excluded.content_text,
+                    content_hash = excluded.content_hash,
+                    url_hash = excluded.url_hash,
+                    source_grade = excluded.source_grade,
+                    topic_id = excluded.topic_id,
+                    fetched_at = excluded.fetched_at,
+                    published_at = excluded.published_at,
+                    author = excluded.author,
+                    language = excluded.language,
+                    summary = excluded.summary,
+                    matched_entities = excluded.matched_entities,
+                    matched_keywords = excluded.matched_keywords,
+                    raw_type = excluded.raw_type,
+                    parser_version = excluded.parser_version
                 """,
                 (
                     doc.document_id,
@@ -275,13 +297,27 @@ class SQLiteStore:
                 )
 
     def insert_observation(self, obs: Observation) -> None:
+        # upsert（ON CONFLICT DO UPDATE）而非 INSERT OR REPLACE：
+        # REPLACE 会触发 claim_evidence.observation_id 的 ON DELETE SET NULL，
+        # 与 document_id 同为 NULL 时违反 CHECK（与 insert_document 同理）。
         with self._conn:
             self._conn.execute(
                 """
-                INSERT OR REPLACE INTO observations (
+                INSERT INTO observations (
                     observation_id, document_id, metric_id, entity_id, value, unit,
                     period_start, period_end, region, confidence, evidence_text
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(observation_id) DO UPDATE SET
+                    document_id = excluded.document_id,
+                    metric_id = excluded.metric_id,
+                    entity_id = excluded.entity_id,
+                    value = excluded.value,
+                    unit = excluded.unit,
+                    period_start = excluded.period_start,
+                    period_end = excluded.period_end,
+                    region = excluded.region,
+                    confidence = excluded.confidence,
+                    evidence_text = excluded.evidence_text
                 """,
                 (
                     obs.observation_id,

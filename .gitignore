@@ -31,6 +31,8 @@ data/cache/*
 *.sqlite
 *.sqlite3
 *.db
+*.sqlite-shm
+*.sqlite-wal
 # Phase 5：GitHub 全自动运行需要把积累数据提交回仓库（持久化事实源）
 !data/state/industry_intelligence.sqlite
 

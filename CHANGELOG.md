@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## v0.6.1a1 — 2026-08-11
+
+### 真实端到端验收修复（DeepSeek 集成）
+
+- **模型修正**：`config/system.yaml` 默认模型改为账号实际可用的 `deepseek-v4-flash`（原 `deepseek-chat` 不存在）。`max_tokens` 4096 → 8192：deepseek-v4-flash 为推理模型，复杂分析 prompt（technology/review）会先消耗大量 `reasoning_tokens` 再产出内容，4096 会被推理耗尽导致空/截断 JSON。
+- **结构化输出修正**：`llm/deepseek_provider.py` — DeepSeek 不支持 OpenAI 新版 `response_format={"type":"json_schema"}`（实测 400 "This response_format type is unavailable now"），改用 `json_object`；`json_object` 模式只检查 user 消息，user 不含 "json" 时自动补一句输出指令。`_request_json()` 空/非法 JSON 响应自动重试（3 次 + 2s 退避），缓解 deepseek-v4-flash 间歇性空内容（尤以长结构化输出为甚）。
+- **分析师模板注入修复（关键）**：`analysis/base.py` 与 `analysis/review.py` — 此前 `_prompt_template` 加载后从未注入 LLM 请求，分析师只收到裸数据，模型回显输入结构而非 `{"claims":[...]}`。现在模板与数据合并进同一条 user 消息（与分类器/提取器的单条 user 成功模式一致），4 分析师 + Review Agent 全部按要求输出。
+- **`_build_messages` 对齐**：AnalysisAgent 死代码方法同步为单条 user 合并模式，避免未来误用 system/user 分裂。
+- **SQLite persist 修复（关键）**：`storage/sqlite_store.py` — `insert_document` / `insert_observation` 由 `INSERT OR REPLACE`（内部是 DELETE+INSERT）改为真正的 UPSERT（`ON CONFLICT DO UPDATE`）。此前重采集相同 `document_id` 时会触发 `claim_evidence.document_id ON DELETE SET NULL`，当 `observation_id` 也为空时违反 CHECK 约束（`document_id IS NOT NULL OR observation_id IS NOT NULL`）导致整轮 persist 报错。upsert 原地更新，证据链接保留，已用最小复现 + 回归测试锁定。
+- **`.gitignore`**：补充 `*.sqlite-shm` / `*.sqlite-wal`（SQLite WAL 瞬态边车不提交）。
+- **测试**：新增 4 个（`_build_messages` 无模板边界、`_generate_structured_safe` 模板合并、ReviewAgent 模板合并、文档重采集保留证据链接回归），同步模型与 `max_tokens` 断言；294 个测试全过，ruff / mypy 干净。
+- **真实验证**：`charging_cn_weekly` 全链路 run 产出 22→24 条 Claim（100% 证据覆盖率）、4 分析师全部成功、Review 19 pass / 0 reject / 3 downgrade；0 观测为数据依赖（主题仅 5 家重点企业，本周大部分文档命中蔚来/比亚迪等未配置企业）。`persist: CHECK constraint failed` 错误已通过 UPSERT 修复后实跑确认消除；Review 偶发空响应（推理模型间歇性）在 3 次重试 + 退避后仍失败时按设计优雅降级（报告照常生成，该轮 Claim 标记为未审查）。
+
 ## v0.6.0a1 — 2026-08-11
 
 ### Phase 5：GitHub 全自动运行

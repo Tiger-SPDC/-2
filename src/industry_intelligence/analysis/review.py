@@ -181,11 +181,18 @@ class ReviewAgent:
     def _generate_structured_safe(
         self, prompt: str, errors: list[str]
     ) -> dict[str, object]:
-        """调用 LLM 结构化输出；失败记录错误返回 {}，不抛出。"""
+        """调用 LLM 结构化输出；失败记录错误返回 {}，不抛出。
+
+        模板合并进 user 消息：与 ``AnalysisAgent`` 修复一致，此前 review.md
+        模板仅存于 ``_prompt_template`` 却从未注入请求。
+        """
         if self._provider is None:
             return {}
+        user_prompt = prompt
+        if self._prompt_template:
+            user_prompt = f"{self._prompt_template}\n\n{prompt}"
         try:
-            return self._provider.generate_structured(prompt, REVIEW_SCHEMA)
+            return self._provider.generate_structured(user_prompt, REVIEW_SCHEMA)
         except LLMError as exc:
             errors.append(f"review: {exc}")
             return {}

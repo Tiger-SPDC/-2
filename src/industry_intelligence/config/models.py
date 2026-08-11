@@ -37,6 +37,18 @@ class QualityConfig:
 
 
 @dataclass
+class LLMConfig:
+    """LLM 接入参数（config/system.yaml -> llm）。"""
+
+    provider: str = "deepseek"
+    model: str = "deepseek-chat"
+    api_key_env: str = "DEEPSEEK_API_KEY"
+    base_url: str = "https://api.deepseek.com/v1"
+    temperature: float = 0.1
+    max_tokens: int = 4096
+
+
+@dataclass
 class SystemConfig:
     """系统级配置。"""
 
@@ -45,6 +57,7 @@ class SystemConfig:
     collection: CollectionConfig = field(default_factory=CollectionConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
     quality: QualityConfig = field(default_factory=QualityConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
 
 
 @dataclass

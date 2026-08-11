@@ -1,10 +1,10 @@
 # PROJECT_STATUS
 
 - **Project:** Industry Intelligence Agent
-- **Version:** v0.2.0a1
+- **Version:** v0.3.0a1
 - **Date:** 2026-08-11
-- **Current phase:** Phase 1（最小可用采集链路已完成，待验收）
-- **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / CLI
+- **Current phase:** Phase 2（事件与指标抽取已完成）
+- **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / CLI
 - **Repository safety boundary:** Required
 - **Preferred local Python:** 3.12 (3.11+ acceptable)
 - **Primary coding agent:** Claude Code
@@ -36,12 +36,20 @@
 - [x] Phase 1：具体配置（充电基础设施 Topic/Task + taxonomies）
 - [x] Phase 1：CLI（`--version` / `--validate` / `--topic --task`）
 - [x] Phase 1：测试套件（10 单元 + 1 整合，全离线）
+- [x] Phase 2：LLM Provider 抽象 + DeepSeek 实现（`llm/`，API Key 环境变量注入）
+- [x] Phase 2：配置扩展（`system.yaml` llm 段、`LLMConfig`、`load_event_types()`）
+- [x] Phase 2：实体别名解析（`entities/resolver.py`）
+- [x] Phase 2：事件分类与聚类（`intelligence/classifier.py` + `clustering.py`）
+- [x] Phase 2：Observation 结构化抽取（`metrics/extractor.py`）
+- [x] Phase 2：SQLite 七表查询层（`storage/sqlite_store.py`，可重建）
+- [x] Phase 2：Pipeline 控制器（`controller/pipeline.py`，单步失败不中断）
+- [x] Phase 2：CLI `--phase2 / --rebuild-db / --db-path`；版本 0.3.0a1
+- [x] Phase 2：测试套件（+65 测试，全离线 mock）
 
 ## 尚未开始
 
 - [ ] GitHub 远端仓库绑定
-- [ ] Phase 2：真实搜索 API 接入与 API 密钥管理
-- [ ] Phase 2+：SQLite 查询层（存储层仅 JSONL 追加）
-- [ ] Phase 2+：LLM 分析、Event/Observation 构建
+- [ ] Phase 2+：真实搜索 API 接入（搜索源仍为 RSS）
+- [ ] Phase 3：报告生成（Markdown / Excel）
 - [ ] Phase 3：通知推送（微信）
 - [ ] 采集规模扩大与运行调度优化

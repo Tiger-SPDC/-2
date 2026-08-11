@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.3.0a1 — 2026-08-11
+
+### Phase 2：事件与指标抽取
+
+- **LLM 接入**：`llm/provider.py`（`LLMProvider` ABC + `LLMError`）、`llm/deepseek_provider.py`（OpenAI SDK → DeepSeek base_url，API Key 环境变量注入，未设时抛 `LLMError`，测试用 mock）、`llm/prompts.py`（`config/prompts/` 模板加载）。
+- **配置扩展**：`system.yaml` 启用 `llm` 段；`config/models.py` 新增 `LLMConfig`；`config/loader.py` 新增 `load_event_types()`（20 类事件分类法）。
+- **实体解析**：`entities/resolver.py` — casefold 索引（canonical_name + aliases），文档标题/正文匹配并填充 `matched_entities`，同实体取最长命中词条。
+- **事件分类**：`intelligence/classifier.py` — LLM 结构化输出主路径 + 关键词回落表（`topic.keywords.events` → event_type_id）。
+- **事件聚类**：`intelligence/clustering.py` — 标题相似度（SequenceMatcher > 0.6）+ 共享实体 + 时间 ≤ 3 天，union-find 连通分量归并。
+- **观测抽取**：`metrics/extractor.py` — JSON Schema 结构化抽取（仅显式数值），置信度 < 0.5 过滤，确定性 `observation_id`。
+- **SQLite 查询层**：`storage/sqlite_store.py` — documents/entities/entity_aliases/events/event_documents/observations/runs 七表，WAL + 外键，参数化写入，`drop_all()` 可重建。
+- **Pipeline**：`controller/pipeline.py` — Phase 1 + Phase 2 编排，单步失败不中断，`RunResult` 汇总，runs 表记录生命周期。
+- **CLI**：新增 `--phase2 / --rebuild-db / --db-path`；版本升至 `0.3.0a1`。
+- **测试**：新增 65 个测试（LLM / 实体 / 分类 / 聚类 / 观测 / SQLite 单测 + Phase 2 集成测试，全离线）。
+
 ## v0.2.0a1 — 2026-08-11
 
 ### Phase 1：最小可用采集链路

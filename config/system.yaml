@@ -21,9 +21,16 @@ quality:
   require_evidence_for_key_claim: true
   reject_untraceable_numbers: true
 
-# Phase 2+ 再启用：
-# llm:
-#   provider: configurable
+# LLM 接入（Phase 2 启用；API Key 通过环境变量注入，不落库）
+llm:
+  provider: deepseek
+  model: deepseek-chat
+  api_key_env: DEEPSEEK_API_KEY
+  base_url: https://api.deepseek.com/v1
+  temperature: 0.1
+  max_tokens: 4096
+
+# Phase 3+ 再启用：
 # report:
 #   markdown: true
 #   excel: true

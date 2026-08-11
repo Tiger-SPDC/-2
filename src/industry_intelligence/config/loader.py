@@ -12,6 +12,7 @@ import yaml
 from industry_intelligence.config.models import (
     CollectionConfig,
     CompanyEntity,
+    LLMConfig,
     QualityConfig,
     StorageConfig,
     SystemConfig,
@@ -48,6 +49,21 @@ def load_task(task_id: str, config_dir: str | Path = "config") -> TaskConfig:
     path = Path(config_dir) / "tasks" / f"{task_id}.yaml"
     data = _read_yaml(path)
     return _parse_task(data, task_id, str(path))
+
+
+def load_event_types(config_dir: str | Path = "config") -> dict[str, str]:
+    """加载 config/taxonomies/event_types.yaml，返回 {event_type_id: name}。"""
+    path = Path(config_dir) / "taxonomies" / "event_types.yaml"
+    data = _read_yaml(path)
+    raw = data.get("event_types")
+    if not isinstance(raw, list):
+        raise ConfigError(f"{path}: 'event_types' must be a list")
+    result: dict[str, str] = {}
+    for idx, item in enumerate(raw):
+        if not isinstance(item, dict) or not item.get("id") or not item.get("name"):
+            raise ConfigError(f"{path}: event_types[{idx}] must have 'id' and 'name'")
+        result[str(item["id"])] = str(item["name"])
+    return result
 
 
 def resolve_task(task: TaskConfig, topic: TopicProfile) -> TaskConfig:
@@ -148,6 +164,19 @@ def _parse_system_config(data: dict[str, object], path: str) -> SystemConfig:
                 path,
             ),
         ),
+        llm=_parse_llm_config(data, path),
+    )
+
+
+def _parse_llm_config(data: dict[str, object], path: str) -> LLMConfig:
+    llm = _mapping(data, "llm", path)
+    return LLMConfig(
+        provider=_as_str(llm.get("provider"), "llm.provider", path),
+        model=_as_str(llm.get("model"), "llm.model", path),
+        api_key_env=_as_str(llm.get("api_key_env"), "llm.api_key_env", path),
+        base_url=_as_str(llm.get("base_url"), "llm.base_url", path),
+        temperature=_as_float(llm.get("temperature"), "llm.temperature", path),
+        max_tokens=_as_int(llm.get("max_tokens"), "llm.max_tokens", path),
     )
 
 

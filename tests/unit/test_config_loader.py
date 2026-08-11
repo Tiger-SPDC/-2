@@ -81,3 +81,21 @@ def test_load_system_config(project_root: Path) -> None:
     assert cfg.default_language == "zh-CN"
     assert cfg.collection.max_concurrency == 5
     assert cfg.storage.persistent_format == "jsonl"
+
+
+def test_load_llm_config_section(project_root: Path) -> None:
+    cfg = load_system_config(project_root / "config" / "system.yaml")
+    assert cfg.llm.provider == "deepseek"
+    assert cfg.llm.model == "deepseek-chat"
+    assert cfg.llm.api_key_env == "DEEPSEEK_API_KEY"
+    assert cfg.llm.base_url == "https://api.deepseek.com/v1"
+    assert cfg.llm.temperature == 0.1
+    assert cfg.llm.max_tokens == 4096
+
+
+def test_load_event_types(project_root: Path) -> None:
+    from industry_intelligence.config.loader import load_event_types
+
+    event_types = load_event_types(project_root / "config")
+    assert "other" in event_types
+    assert len(event_types) == 20

@@ -2,6 +2,7 @@
 
 from industry_intelligence.config.loader import (
     ConfigError,
+    load_event_types,
     load_system_config,
     load_task,
     load_topic,
@@ -10,6 +11,7 @@ from industry_intelligence.config.loader import (
 from industry_intelligence.config.models import (
     CollectionConfig,
     CompanyEntity,
+    LLMConfig,
     QualityConfig,
     StorageConfig,
     SystemConfig,
@@ -27,6 +29,7 @@ __all__ = [
     "CollectionConfig",
     "CompanyEntity",
     "ConfigError",
+    "LLMConfig",
     "QualityConfig",
     "StorageConfig",
     "SystemConfig",
@@ -38,6 +41,7 @@ __all__ = [
     "TopicKeywords",
     "TopicProfile",
     "TopicScope",
+    "load_event_types",
     "load_system_config",
     "load_task",
     "load_topic",

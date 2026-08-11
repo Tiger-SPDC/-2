@@ -5,6 +5,8 @@ from __future__ import annotations
 from industry_intelligence.config.models import (
     CollectionConfig,
     CompanyEntity,
+    LLMConfig,
+    SystemConfig,
     TaskOverrides,
     TaskWindow,
     TopicKeywords,
@@ -42,3 +44,19 @@ def test_task_window_defaults() -> None:
     w = TaskWindow()
     assert w.type == "rolling"
     assert w.days == 7
+
+
+def test_llm_config_defaults() -> None:
+    cfg = LLMConfig()
+    assert cfg.provider == "deepseek"
+    assert cfg.model == "deepseek-chat"
+    assert cfg.api_key_env == "DEEPSEEK_API_KEY"
+    assert cfg.base_url == "https://api.deepseek.com/v1"
+    assert cfg.temperature == 0.1
+    assert cfg.max_tokens == 4096
+
+
+def test_system_config_has_llm_default() -> None:
+    sys_cfg = SystemConfig()
+    assert sys_cfg.llm.provider == "deepseek"
+    assert sys_cfg.llm.api_key_env == "DEEPSEEK_API_KEY"

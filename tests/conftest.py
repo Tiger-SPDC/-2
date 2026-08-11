@@ -67,3 +67,26 @@ def sample_topic() -> TopicProfile:
 def sample_task() -> TaskConfig:
     """直接构造的最小有效 Task。"""
     return TaskConfig(id="tk1", topic_id="t1", enabled=True)
+
+
+@pytest.fixture
+def make_doc():
+    """NormalizedDocument 工厂，可用关键字覆盖任意字段。"""
+    from industry_intelligence.core.document import NormalizedDocument
+
+    def _make(**overrides) -> NormalizedDocument:
+        defaults: dict[str, object] = {
+            "document_id": "d1",
+            "canonical_url": "https://example.com/d1",
+            "source_id": "rss:demo",
+            "title": "测试标题",
+            "content_text": "测试正文",
+            "content_hash": "c1",
+            "url_hash": "u1",
+            "source_grade": "C",
+            "topic_id": "t1",
+        }
+        defaults.update(overrides)
+        return NormalizedDocument(**defaults)
+
+    return _make

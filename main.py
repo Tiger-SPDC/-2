@@ -1,9 +1,10 @@
 """Industry Intelligence Agent — 命令行入口。
 
 用法：
-  python main.py --version                        显示版本
-  python main.py --validate                       校验全部配置
-  python main.py --topic <id> --task <id> [--output <jsonl>]  运行采集链路
+  python main.py --version                         显示版本
+  python main.py --validate                        校验全部配置
+  python main.py --topic <id> --task <id> [--output <jsonl>]          运行采集链路
+  python main.py --topic <id> --task <id> --phase2 [--rebuild-db]    完整分析链路
 """
 
 from __future__ import annotations
@@ -32,6 +33,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--topic", help="Topic id")
     parser.add_argument("--task", help="Task id")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="输出 JSONL 路径")
+    parser.add_argument("--phase2", action="store_true", help="运行 Phase 2 完整分析链路")
+    parser.add_argument("--rebuild-db", action="store_true", help="重建 SQLite（删除全部业务表）")
+    default_db = str(PROJECT_ROOT / "data" / "state" / "industry_intelligence.sqlite")
+    parser.add_argument("--db-path", default=default_db, help="SQLite 路径")
 
     args = parser.parse_args(argv)
 
@@ -41,6 +46,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.validate:
         return _cmd_validate()
     if args.topic and args.task:
+        if args.phase2:
+            return _cmd_run_phase2(
+                args.topic, args.task, args.output, args.db_path, args.rebuild_db
+            )
         return _cmd_run(args.topic, args.task, args.output)
 
     parser.print_help()
@@ -51,6 +60,7 @@ def _cmd_validate() -> int:
     """校验 config/ 下全部 Topic 与 Task 配置。"""
     from industry_intelligence.config.loader import (
         ConfigError,
+        load_event_types,
         load_system_config,
         load_task,
         load_topic,
@@ -60,6 +70,10 @@ def _cmd_validate() -> int:
     errors: list[str] = []
     try:
         load_system_config(CONFIG_DIR / "system.yaml")
+    except ConfigError as exc:
+        errors.append(str(exc))
+    try:
+        load_event_types(CONFIG_DIR)
     except ConfigError as exc:
         errors.append(str(exc))
 
@@ -157,6 +171,94 @@ def _cmd_run(topic_id: str, task_id: str, output: str) -> int:
     )
     print(f"Output: {store.path}")
     return 0
+
+
+def _cmd_run_phase2(
+    topic_id: str, task_id: str, output: str, db_path: str, rebuild_db: bool
+) -> int:
+    """执行 Phase 2 完整链路（采集 + 实体/事件/观测 + SQLite 持久化）。"""
+    from industry_intelligence.collectors import SearchPlanner
+    from industry_intelligence.config.loader import (
+        ConfigError,
+        load_event_types,
+        load_system_config,
+        load_task,
+        load_topic,
+        resolve_task,
+    )
+    from industry_intelligence.controller import Pipeline
+    from industry_intelligence.entities import EntityResolver
+    from industry_intelligence.intelligence import EventClassifier, EventClusterer
+    from industry_intelligence.llm import DeepSeekProvider, LLMError, load_prompt
+    from industry_intelligence.metrics import ObservationExtractor
+    from industry_intelligence.sources import RSSAdapter
+    from industry_intelligence.storage import JSONLStore, SQLiteStore
+
+    try:
+        sys_cfg = load_system_config(CONFIG_DIR / "system.yaml")
+        topic = load_topic(topic_id, config_dir=CONFIG_DIR)
+        task = resolve_task(load_task(task_id, config_dir=CONFIG_DIR), topic)
+        event_types = load_event_types(CONFIG_DIR)
+    except ConfigError as exc:
+        print(f"Config error: {exc}")
+        return 1
+
+    try:
+        provider = DeepSeekProvider(sys_cfg.llm)
+    except LLMError as exc:
+        print(f"LLM config error: {exc}")
+        return 1
+
+    feeds = _load_rss_feeds()
+    if not feeds:
+        print("No rss_feeds configured in config/sources/search.yaml; nothing to collect.")
+        return 0
+
+    adapter = RSSAdapter(feeds, timeout=sys_cfg.collection.request_timeout_seconds)
+    jsonl_store = JSONLStore(output)
+    sqlite_store = SQLiteStore(db_path)
+    if rebuild_db:
+        sqlite_store.drop_all()
+        sqlite_store.rebuild()
+        print(f"SQLite rebuilt: {db_path}")
+
+    resolver = EntityResolver(topic)
+    classifier = EventClassifier(
+        provider=provider,
+        event_types=event_types,
+        keywords=topic.keywords.events,
+        prompt_template=load_prompt("classification", CONFIG_DIR),
+    )
+    extractor = ObservationExtractor(
+        provider=provider,
+        prompt_template=load_prompt("extraction", CONFIG_DIR),
+    )
+    pipeline = Pipeline(
+        topic=topic,
+        task=task,
+        system_config=sys_cfg,
+        adapter=adapter,
+        jsonl_store=jsonl_store,
+        sqlite_store=sqlite_store,
+        entity_resolver=resolver,
+        event_classifier=classifier,
+        observation_extractor=extractor,
+        planner=SearchPlanner(),
+        event_clusterer=EventClusterer(),
+    )
+
+    result = pipeline.run()
+    print(
+        f"Run {result.run_id} [{result.status}]: "
+        f"{result.documents_collected} doc(s), "
+        f"{result.documents_deduped} dup(s), "
+        f"{result.events_created} event(s), "
+        f"{result.observations_extracted} observation(s)"
+    )
+    for msg in result.errors:
+        print(f"  ! {msg}")
+    print(f"Output: {jsonl_store.path}")
+    return 0 if result.status != "failed" else 1
 
 
 def _load_rss_feeds() -> dict[str, str]:

@@ -14,8 +14,10 @@ from industry_intelligence.config.models import (
     CollectionConfig,
     CompanyEntity,
     LLMConfig,
+    NotificationConfig,
     QualityConfig,
     ReportConfig,
+    ReviewConfig,
     StorageConfig,
     SystemConfig,
     TaskConfig,
@@ -175,6 +177,39 @@ def _parse_system_config(data: dict[str, object], path: str) -> SystemConfig:
         llm=_parse_llm_config(data, path),
         analysis=_parse_analysis_config(data, path),
         report=_parse_report_config(data, path),
+        review=_parse_review_config(data, path),
+        notification=_parse_notification_config(data, path),
+    )
+
+
+def _parse_review_config(data: dict[str, object], path: str) -> ReviewConfig:
+    """解析 config/system.yaml -> review 段；缺省时返回内置默认值。"""
+    review = _mapping(data, "review", path)
+    if not review:
+        return ReviewConfig()
+    return ReviewConfig(
+        enabled=_as_bool(review.get("enabled"), "review.enabled", path),
+    )
+
+
+def _parse_notification_config(
+    data: dict[str, object], path: str
+) -> NotificationConfig:
+    """解析 config/system.yaml -> notification 段；缺省时返回内置默认值。"""
+    notification = _mapping(data, "notification", path)
+    if not notification:
+        return NotificationConfig()
+    return NotificationConfig(
+        serverchan_key_env=_as_str(
+            notification.get("serverchan_key_env"),
+            "notification.serverchan_key_env",
+            path,
+        )
+        or "SERVERCHAN_KEY",
+        retry=_as_int(notification.get("retry"), "notification.retry", path),
+        timeout_seconds=_as_int(
+            notification.get("timeout_seconds"), "notification.timeout_seconds", path
+        ),
     )
 
 

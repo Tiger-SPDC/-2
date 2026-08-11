@@ -117,6 +117,21 @@ CREATE TABLE IF NOT EXISTS claim_evidence (
         CHECK (evidence_role IN ('primary_source', 'cross_validation', 'context')),
     CHECK (document_id IS NOT NULL OR observation_id IS NOT NULL)
 );
+
+CREATE TABLE IF NOT EXISTS claim_reviews (
+    review_id TEXT PRIMARY KEY,
+    claim_id TEXT NOT NULL REFERENCES claims(claim_id) ON DELETE CASCADE,
+    verdict TEXT NOT NULL
+        CHECK (verdict IN ('pass', 'reject', 'downgrade')),
+    downgrade_to TEXT CHECK (
+        downgrade_to IS NULL
+        OR downgrade_to IN ('fact', 'inference', 'forecast', 'unknown')
+    ),
+    issues TEXT NOT NULL DEFAULT '[]',
+    reason TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE CASCADE,
+    reviewed_at TEXT NOT NULL
+);
 """
 
 
@@ -158,6 +173,7 @@ class SQLiteStore:
     def drop_all(self) -> None:
         """删除全部业务表（JSONL 为事实源，SQLite 可 DROP 后重建）。"""
         tables = (
+            "claim_reviews",
             "claim_evidence",
             "claims",
             "event_documents",
@@ -332,6 +348,43 @@ class SQLiteStore:
                 ) VALUES (?, ?, ?, ?)
                 """,
                 (claim_id, document_id, observation_id, evidence_role),
+            )
+
+    def insert_claim_review(
+        self,
+        review_id: str,
+        claim_id: str,
+        verdict: str,
+        run_id: str,
+        downgrade_to: str | None = None,
+        issues: list[str] | None = None,
+        reason: str = "",
+        reviewed_at: str | None = None,
+    ) -> None:
+        """写入一条 Claim 审查结论（verdict ∈ pass/reject/downgrade）。"""
+        if verdict not in ("pass", "reject", "downgrade"):
+            raise ValueError(f"invalid review verdict: {verdict!r}")
+        if verdict == "downgrade" and downgrade_to is None:
+            raise ValueError("downgrade verdict requires downgrade_to")
+        stamp = reviewed_at or datetime.now(UTC).isoformat(timespec="seconds")
+        with self._conn:
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO claim_reviews (
+                    review_id, claim_id, verdict, downgrade_to, issues,
+                    reason, run_id, reviewed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    review_id,
+                    claim_id,
+                    verdict,
+                    downgrade_to,
+                    json.dumps(issues or [], ensure_ascii=False),
+                    reason,
+                    run_id,
+                    stamp,
+                ),
             )
 
     def insert_run(
@@ -572,4 +625,28 @@ class SQLiteStore:
         """查询某条 Claim 的证据。"""
         return self._conn.execute(
             "SELECT * FROM claim_evidence WHERE claim_id = ?", (claim_id,)
+        ).fetchall()
+
+    def query_claim_reviews(self, run_id: str) -> list[sqlite3.Row]:
+        """查询某次运行的全部 Claim 审查结论。"""
+        return self._conn.execute(
+            "SELECT * FROM claim_reviews WHERE run_id = ? ORDER BY claim_id",
+            (run_id,),
+        ).fetchall()
+
+    def query_claims_with_evidence(self, run_id: str) -> list[sqlite3.Row]:
+        """查询某次运行的 Claim，并 LEFT JOIN 证据（同一条 Claim 多证据时多行）。
+
+        返回列：claims.* + document_id, observation_id, evidence_role。
+        供 Review Agent 与报告引擎直接组装可追溯的 Claim+Evidence 视图。
+        """
+        return self._conn.execute(
+            """
+            SELECT c.*, ce.document_id, ce.observation_id, ce.evidence_role
+            FROM claims c
+            LEFT JOIN claim_evidence ce ON ce.claim_id = c.claim_id
+            WHERE c.run_id = ?
+            ORDER BY c.claim_id
+            """,
+            (run_id,),
         ).fetchall()

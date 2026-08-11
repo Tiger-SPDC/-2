@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,12 @@ def main(argv: list[str] | None = None) -> int:
         "--phase3", action="store_true",
         help="在 Phase 2 基础上运行 Phase 3 竞争情报分析（需同时指定 --phase2）",
     )
+    parser.add_argument(
+        "--phase4", action="store_true",
+        help="在 Phase 2+3 基础上执行 Phase 4 审查与报告（需同时指定 --phase2 --phase3）",
+    )
+    default_report_dir = str(PROJECT_ROOT / "output" / "reports")
+    parser.add_argument("--report-dir", default=default_report_dir, help="报告输出目录")
     parser.add_argument("--rebuild-db", action="store_true", help="重建 SQLite（删除全部业务表）")
     default_db = str(PROJECT_ROOT / "data" / "state" / "industry_intelligence.sqlite")
     parser.add_argument("--db-path", default=default_db, help="SQLite 路径")
@@ -53,12 +60,17 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_validate()
     if args.topic and args.task:
         if args.phase2:
+            if args.phase4 and not args.phase3:
+                print("--phase4 需要同时指定 --phase3；本次跳过审查与报告阶段。")
             return _cmd_run_phase2(
                 args.topic, args.task, args.output, args.db_path, args.rebuild_db,
-                phase3=args.phase3,
+                phase3=args.phase3, phase4=args.phase4 and args.phase3,
+                report_dir=args.report_dir,
             )
         if args.phase3:
             print("--phase3 需要同时指定 --phase2；本次仅运行采集链路。")
+        if args.phase4:
+            print("--phase4 需要同时指定 --phase2 --phase3；本次仅运行采集链路。")
         return _cmd_run(args.topic, args.task, args.output)
 
     parser.print_help()
@@ -196,11 +208,13 @@ def _cmd_run(topic_id: str, task_id: str, output: str) -> int:
 
 def _cmd_run_phase2(
     topic_id: str, task_id: str, output: str, db_path: str, rebuild_db: bool,
-    phase3: bool = False,
+    phase3: bool = False, phase4: bool = False,
+    report_dir: str | None = None,
 ) -> int:
     """执行 Phase 2 完整链路（采集 + 实体/事件/观测 + SQLite 持久化）。
 
     phase3=True 时追加 Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较）。
+    phase4=True 时追加 Phase 4 审查（Review Agent）与报告（Markdown/Excel/摘要）。
     """
     from industry_intelligence.collectors import SearchPlanner
     from industry_intelligence.config.loader import (
@@ -271,6 +285,35 @@ def _cmd_run_phase2(
             analysis_config=sys_cfg.analysis,
         )
 
+    review_agent = None
+    report_engine = None
+    notification_adapter = None
+    if phase4:
+        from industry_intelligence.analysis.review import ReviewAgent
+        from industry_intelligence.notification import ServerChanAdapter
+        from industry_intelligence.reporting import ReportEngine
+
+        review_agent = ReviewAgent(
+            provider=provider,
+            sqlite_store=sqlite_store,
+            prompt_template=load_prompt("review", CONFIG_DIR),
+            topic=topic,
+            task=task,
+            review_config=sys_cfg.review,
+        )
+        report_engine = ReportEngine(
+            sqlite_store=sqlite_store,
+            topic=topic,
+            task=task,
+            report_config=sys_cfg.report,
+            output_dir=report_dir or (PROJECT_ROOT / "output" / "reports"),
+        )
+        notification_adapter = ServerChanAdapter(
+            sendkey=os.environ.get(sys_cfg.notification.serverchan_key_env),
+            retry=sys_cfg.notification.retry,
+            timeout_seconds=sys_cfg.notification.timeout_seconds,
+        )
+
     resolver = EntityResolver(topic)
     classifier = EventClassifier(
         provider=provider,
@@ -295,6 +338,9 @@ def _cmd_run_phase2(
         planner=SearchPlanner(),
         event_clusterer=EventClusterer(),
         analysis_engine=analysis_engine,
+        review_agent=review_agent,
+        report_engine=report_engine,
+        notification_adapter=notification_adapter,
     )
 
     result = pipeline.run()
@@ -310,6 +356,18 @@ def _cmd_run_phase2(
             f", {result.analysis_claims} claim(s), "
             f"evidence coverage {result.evidence_coverage:.0%}"
         )
+    if phase4:
+        summary += (
+            f", review {result.review_passed} pass/"
+            f"{result.review_rejected} reject/{result.review_downgraded} downgrade"
+        )
+        if result.report_paths:
+            summary += (
+                ", reports: "
+                + ", ".join(result.report_paths.get(k, "") for k in ("markdown", "excel"))
+            )
+        if result.notification_sent:
+            summary += ", notified"
     print(summary)
     for msg in result.errors:
         print(f"  ! {msg}")

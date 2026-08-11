@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 
 from industry_intelligence.analysis.engine import AnalysisEngine, EngineResult
 from industry_intelligence.analysis.models import AnalysisResult, TrendIndicator
+from industry_intelligence.analysis.review import ReviewAgent, ReviewResult
 from industry_intelligence.collectors import SearchPlanner
 from industry_intelligence.config.models import SystemConfig, TaskConfig, TopicProfile
 from industry_intelligence.core.document import NormalizedDocument
@@ -20,6 +21,8 @@ from industry_intelligence.intelligence.models import Event
 from industry_intelligence.metrics import ObservationExtractor
 from industry_intelligence.metrics.models import Observation
 from industry_intelligence.normalization import Deduplicator
+from industry_intelligence.notification.adapter import NotificationAdapter
+from industry_intelligence.reporting.engine import ReportEngine, ReportEngineResult
 from industry_intelligence.sources.adapter import SourceAdapter
 from industry_intelligence.storage.jsonl_store import JSONLStore
 from industry_intelligence.storage.sqlite_store import SQLiteStore
@@ -39,6 +42,13 @@ class RunResult:
     analysis_claims: int = 0
     evidence_coverage: float = 0.0
     trends: dict[str, list[TrendIndicator]] = field(default_factory=dict)
+    # Phase 4 审查与报告
+    review_passed: int = 0
+    review_rejected: int = 0
+    review_downgraded: int = 0
+    report_paths: dict[str, str] = field(default_factory=dict)
+    digest_text: str = ""
+    notification_sent: bool = False
     errors: list[str] = field(default_factory=list)
 
 
@@ -61,6 +71,9 @@ class Pipeline:
         dedup: Deduplicator | None = None,
         event_clusterer: EventClusterer | None = None,
         analysis_engine: AnalysisEngine | None = None,
+        review_agent: ReviewAgent | None = None,
+        report_engine: ReportEngine | None = None,
+        notification_adapter: NotificationAdapter | None = None,
     ) -> None:
         self._topic = topic
         self._task = task
@@ -76,6 +89,10 @@ class Pipeline:
         self._clusterer = event_clusterer or EventClusterer()
         # None → 跳过分析阶段（Phase 3 之前行为完全一致）
         self._analysis_engine = analysis_engine
+        # None → 跳过审查/报告/通知阶段（Phase 4 之前行为完全一致）
+        self._review_agent = review_agent
+        self._report_engine = report_engine
+        self._notification_adapter = notification_adapter
 
     def run(self) -> RunResult:
         run_id = uuid.uuid4().hex[:16]
@@ -131,6 +148,15 @@ class Pipeline:
         if self._analysis_engine is not None:
             self._run_analysis(run_id, result)
 
+        if self._review_agent is not None:
+            self._run_review(run_id, result)
+
+        if self._report_engine is not None:
+            self._run_reporting(run_id, result)
+
+        if self._notification_adapter is not None and result.digest_text:
+            self._run_notification(result)
+
         result.status = _final_status(result)
         try:
             self._sqlite.complete_run(
@@ -164,6 +190,64 @@ class Pipeline:
         result.trends = analysis.trends
         result.errors.extend(analysis.errors)
         return analysis
+
+    def _run_review(self, run_id: str, result: RunResult) -> None:
+        """执行 Phase 4 审查：7 项检查 → 持久化 verdict。"""
+        agent = self._review_agent
+        if agent is None:
+            return
+        try:
+            review: ReviewResult = agent.review(run_id)
+        except Exception as exc:  # noqa: BLE001 — 审查失败不中断整体
+            result.errors.append(f"review agent: {exc}")
+            return
+        result.review_passed = review.passed
+        result.review_rejected = review.rejected
+        result.review_downgraded = review.downgraded
+        result.errors.extend(review.errors)
+
+    def _run_reporting(self, run_id: str, result: RunResult) -> None:
+        """执行 Phase 4 报告生成：Markdown/Excel/微信摘要。"""
+        engine = self._report_engine
+        if engine is None:
+            return
+        try:
+            report: ReportEngineResult = engine.run(
+                run_id,
+                analysis_claims=result.analysis_claims,
+                evidence_coverage=result.evidence_coverage,
+                indices=[
+                    idx
+                    for analysis in result.analysis_results
+                    for idx in analysis.indices
+                ],
+                trends=result.trends,
+            )
+        except Exception as exc:  # noqa: BLE001 — 报告失败不中断整体
+            result.errors.append(f"report engine: {exc}")
+            return
+        result.report_paths = report.paths
+        result.digest_text = report.digest_text
+        result.errors.extend(report.errors)
+
+    def _run_notification(self, result: RunResult) -> None:
+        """执行 Phase 4 通知推送：发送微信摘要（尽力而为）。"""
+        adapter = self._notification_adapter
+        if adapter is None or not result.digest_text:
+            return
+        try:
+            notification = adapter.send(
+                f"产业竞争情报周报 {result.run_id}",
+                result.digest_text,
+            )
+        except Exception as exc:  # noqa: BLE001 — 推送失败不影响报告
+            result.errors.append(f"notification: {exc}")
+            return
+        result.notification_sent = notification.success
+        if not notification.success:
+            result.errors.append(
+                f"notification: {notification.error or 'unknown'}"
+            )
 
     def _collect(self, result: RunResult) -> list[NormalizedDocument]:
         """执行搜索计划并采集去重，写入 JSONL。"""

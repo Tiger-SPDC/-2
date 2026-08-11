@@ -7,7 +7,9 @@ from industry_intelligence.config.models import (
     CollectionConfig,
     CompanyEntity,
     LLMConfig,
+    NotificationConfig,
     ReportConfig,
+    ReviewConfig,
     SystemConfig,
     TaskOverrides,
     TaskWindow,
@@ -76,3 +78,21 @@ def test_report_config_defaults() -> None:
     assert cfg.markdown is True
     assert cfg.excel is True
     assert cfg.wechat_digest is True
+
+
+def test_review_config_defaults() -> None:
+    cfg = ReviewConfig()
+    assert cfg.enabled is True
+
+
+def test_notification_config_defaults() -> None:
+    cfg = NotificationConfig()
+    assert cfg.serverchan_key_env == "SERVERCHAN_KEY"
+    assert cfg.retry == 2
+    assert cfg.timeout_seconds == 10
+
+
+def test_system_config_has_phase4_sections() -> None:
+    sys_cfg = SystemConfig()
+    assert sys_cfg.review.enabled is True
+    assert sys_cfg.notification.serverchan_key_env == "SERVERCHAN_KEY"

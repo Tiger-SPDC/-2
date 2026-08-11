@@ -66,11 +66,37 @@ class AnalysisConfig:
 
 @dataclass
 class ReportConfig:
-    """报告生成开关（config/system.yaml -> report，Phase 4 启用）。"""
+    """报告生成开关（config/system.yaml -> report，Phase 4 启用）。
+
+    markdown / excel / wechat_digest：三种报告格式开关。
+    """
 
     markdown: bool = True
     excel: bool = True
     wechat_digest: bool = True
+
+
+@dataclass
+class ReviewConfig:
+    """质量审查参数（config/system.yaml -> review，Phase 4 启用）。
+
+    enabled：是否启用 Review Agent（7 项检查）。
+    """
+
+    enabled: bool = True
+
+
+@dataclass
+class NotificationConfig:
+    """通知推送参数（config/system.yaml -> notification，Phase 4 启用）。
+
+    serverchan_key_env：Server酱 SendKey 所在的环境变量名（Secret 不落库）。
+    retry：推送失败重试次数；timeout_seconds：单次请求超时。
+    """
+
+    serverchan_key_env: str = "SERVERCHAN_KEY"
+    retry: int = 2
+    timeout_seconds: int = 10
 
 
 @dataclass
@@ -85,6 +111,8 @@ class SystemConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
+    review: ReviewConfig = field(default_factory=ReviewConfig)
+    notification: NotificationConfig = field(default_factory=NotificationConfig)
 
 
 @dataclass

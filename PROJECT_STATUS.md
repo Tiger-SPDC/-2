@@ -1,10 +1,10 @@
 # PROJECT_STATUS
 
 - **Project:** Industry Intelligence Agent
-- **Version:** v0.4.0a1
+- **Version:** v0.5.0a1
 - **Date:** 2026-08-11
-- **Current phase:** Phase 3（竞争情报分析已完成）
-- **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ CLI
+- **Current phase:** Phase 4（质量审查 + 报告生成 + 通知推送已完成）
+- **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ Phase 4（Review Agent 7 项检查 + Markdown·Excel·微信摘要报告 + 数据质量章节 + Server酱通知）/ CLI
 - **Repository safety boundary:** Required
 - **Preferred local Python:** 3.12 (3.11+ acceptable)
 - **Primary coding agent:** Claude Code
@@ -52,11 +52,18 @@
 - [x] Phase 3：汇聚引擎与证据覆盖率（`analysis/engine.py`）
 - [x] Phase 3：Pipeline 注入与 CLI `--phase3`；版本 0.4.0a1
 - [x] Phase 3：测试套件（+~100 测试，全离线 mock）
+- [x] Phase 4：Review Agent（7 项检查 + pass/reject/downgrade，`claim_reviews` 表）
+- [x] Phase 4：报告数据构建器（`ReportDataBundle` 格式无关中间层 + 数据质量指标）
+- [x] Phase 4：Markdown 15 节完整周报格式化器
+- [x] Phase 4：Excel 8-Sheet 结构化导出格式化器（openpyxl）
+- [x] Phase 4：微信摘要格式化器（6 节 + 数据质量等级 + ≤800 字）
+- [x] Phase 4：报告引擎（开关控制 + 单格式失败隔离，`output/reports/{run_id}/`）
+- [x] Phase 4：通知推送层（`NotificationAdapter` ABC + `ServerChanAdapter`，SendKey 环境变量注入）
+- [x] Phase 4：Pipeline 三 stage 集成（Review → Reporting → Notification）+ CLI `--phase4 / --report-dir`；版本 0.5.0a1
+- [x] Phase 4：测试套件（+46 测试，全离线 mock）
 
 ## 尚未开始
 
 - [ ] GitHub 远端仓库绑定
 - [ ] 真实搜索 API 接入（搜索源仍为 RSS）
-- [ ] Phase 4：报告生成（Markdown / Excel / 微信摘要）
-- [ ] Phase 4：Review Agent（7 项检查、矛盾检测）
 - [ ] 采集规模扩大与运行调度优化

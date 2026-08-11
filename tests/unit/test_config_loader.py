@@ -112,6 +112,18 @@ def test_load_report_config(project_root: Path) -> None:
     assert cfg.report.wechat_digest is True
 
 
+def test_load_review_config(project_root: Path) -> None:
+    cfg = load_system_config(project_root / "config" / "system.yaml")
+    assert cfg.review.enabled is True
+
+
+def test_load_notification_config(project_root: Path) -> None:
+    cfg = load_system_config(project_root / "config" / "system.yaml")
+    assert cfg.notification.serverchan_key_env == "SERVERCHAN_KEY"
+    assert cfg.notification.retry == 2
+    assert cfg.notification.timeout_seconds == 10
+
+
 def test_load_event_types(project_root: Path) -> None:
     from industry_intelligence.config.loader import load_event_types
 

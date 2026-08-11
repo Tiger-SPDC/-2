@@ -43,3 +43,15 @@ report:
   markdown: true
   excel: true
   wechat_digest: true
+
+# 质量审查（Phase 4 启用）
+# enabled：是否运行 Review Agent（7 项检查：数字可追溯/日期/推断≠事实/活动度≠销量/证据/矛盾/措辞）
+review:
+  enabled: true
+
+# 通知推送（Phase 4 启用）
+# serverchan_key_env：Server酱 SendKey 所在的环境变量名（Secret 不落库、不提交 Git）
+notification:
+  serverchan_key_env: SERVERCHAN_KEY
+  retry: 2
+  timeout_seconds: 10

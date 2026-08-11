@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v0.5.0a1 — 2026-08-11
+
+### Phase 4：质量审查 + 报告生成 + 通知推送
+
+- **Review Agent**：`analysis/review.py` — 按 `config/prompts/review.md` 对全部分析 Claim + 证据执行 7 项检查（数字可追溯 / 日期 / 推断≠事实 / 活动度≠销量 / 证据 / 矛盾 / 措辞），输出 pass / reject / downgrade 结论并持久化到 `claim_reviews` 表；确定性 `review_id`（sha256(claim_id|verdict|run_id)[:16]）；无 provider 或关闭时返回空结果不报错。
+- **配置扩展**：`system.yaml` 启用 `review`（enabled）与 `notification`（serverchan_key_env / retry / timeout_seconds）段；`config/models.py` 新增 `ReviewConfig`、`NotificationConfig`。
+- **SQLite 扩展**：新增 `claim_reviews` 表（verdict / downgrade_to / issues / reason，CHECK 约束）；`insert_claim_review` / `query_claim_reviews` / `query_claims_with_evidence`（LEFT JOIN 合并 Claim + 证据）。
+- **报告数据构建器**：`reporting/builder.py` — 纯确定性 SQLite 查询组装格式无关的 `ReportDataBundle`（events / observations / documents / companies / claims / indices / trends / review_results / quality）；数据质量指标（§25）确定性计算。
+- **三种报告格式化器**：`reporting/formatters/` — `markdown.py`（15 节完整周报，`[事实]/[推断]/[预测]/[数据不足]` 标签，空节不虚构）、`excel.py`（8 个 Sheet 结构化导出，openpyxl 直接写入，不依赖 pandas）、`digest.py`（微信 6 节摘要 + 数据质量等级 + 报告路径，≤800 字）。
+- **报告引擎**：`reporting/engine.py` — 按 `report_config` 开关渲染并写入 `{output_dir}/{run_id}/`；单格式失败不中断其它格式。
+- **通知推送层**：`notification/adapter.py`（`NotificationAdapter` ABC）+ `serverchan.py`（`ServerChanAdapter`，POST `sctapi.ftqq.com`，内置重试，SendKey 环境变量注入，失败返回结果不抛出）。
+- **Pipeline / CLI**：Pipeline 新增 Review → Reporting → Notification 三个独立 stage（各自 try/except，推送失败不回滚报告）；`RunResult` 增加 review 计数 / report_paths / digest_text / notification_sent；`--phase4`（需 `--phase2 --phase3`）与 `--report-dir`。
+- **测试**：新增 46 个测试（ReviewAgent / 报告构建器 / 3 种格式化器 / 报告引擎 / ServerChan Adapter 单测 + Phase 4 端到端集成测试，全离线 mock）。
+
 ## v0.4.0a1 — 2026-08-11
 
 ### Phase 3：竞争情报分析

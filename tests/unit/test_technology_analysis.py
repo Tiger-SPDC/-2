@@ -80,8 +80,8 @@ def test_compute_thi_keyword_docs_add_weight() -> None:
         [_event("e1", "new_product")], keyword_doc_count=1,
         period_start="a", period_end="b",
     )
-    # (2.0 + 0.5) × 10 = 25
-    assert idx.score == 25.0
+    # 10 × 2.0 + 0.5 × 1 = 20.5（关键词文档贡献在 ×10 之外单独叠加）
+    assert idx.score == 20.5
     assert idx.components["technology_keyword_docs"] == 1.0
 
 
@@ -111,8 +111,8 @@ def test_analyze_with_mock_provider(make_doc, sample_topic, sample_task) -> None
     assert result.analysis_type == "technology"
     assert len(result.claims) == 1
     assert result.indices[0].index_name == INDEX_THI
-    # new_product 2.0 + technology_rd 1.5 + 关键词文档 0.5 → 4.0 × 10 = 40
-    assert result.indices[0].score == 40.0
+    # 10 × (2.0 + 1.5) + 0.5 × 1 = 35.5
+    assert result.indices[0].score == 35.5
     assert result.evidences[0].document_id == "d1"
 
 

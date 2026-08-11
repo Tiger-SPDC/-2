@@ -50,6 +50,7 @@ def compute_thi(
     """计算技术热度指数（0-100，确定性）。
 
     公式：10 × Σ(技术事件权重 × 置信度) + 0.5 × 技术关键词文档数，封顶 100。
+    关键词文档贡献在加权事件贡献之外单独叠加（与计划公式一致）。
     """
     components: dict[str, float] = {}
     total = 0.0
@@ -59,9 +60,11 @@ def compute_thi(
         weight = TECH_TYPE_WEIGHTS.get(etype, 0.5) * confidence
         components[etype] = components.get(etype, 0.0) + weight
         total += weight
-    total += _KEYWORD_DOC_WEIGHT * keyword_doc_count
     components["technology_keyword_docs"] = float(keyword_doc_count)
-    score = min(100.0, _THI_SCALE * total)
+    score = min(
+        100.0,
+        _THI_SCALE * total + _KEYWORD_DOC_WEIGHT * keyword_doc_count,
+    )
     return IndexScore(
         index_name=INDEX_THI,
         entity_id=None,

@@ -223,13 +223,13 @@ def test_tech_heat_change(make_doc, sample_topic, sample_task) -> None:
     t = _comparison(store, topic, sample_task).compute_trends()[
         TREND_TECH_HEAT_CHANGE
     ][0]
-    # THI = 10×(Σ权重 + 0.5×关键词文档)
-    # 当前：10×(2.0+1.5+0.5×1)=40.0；上周：10×2.0=20.0
-    # 4w：10×(2.0×4+0.5×2)=90.0 → /4 = 22.5
-    assert t.current_value == pytest.approx(40.0, abs=1e-4)
+    # THI = 10×Σ权重 + 0.5×关键词文档
+    # 当前：10×(2.0+1.5)+0.5×1=35.5；上周：10×2.0=20.0
+    # 4w：10×(2.0×4)+0.5×2=81 → /4 = 20.25
+    assert t.current_value == pytest.approx(35.5, abs=1e-4)
     assert t.previous_value == pytest.approx(20.0, abs=1e-4)
-    assert t.baseline_avg == pytest.approx(22.5, abs=1e-4)
-    assert t.delta_pct == pytest.approx(100.0, abs=1e-4)
+    assert t.baseline_avg == pytest.approx(20.25, abs=1e-4)
+    assert t.delta_pct == pytest.approx(77.5, abs=1e-4)
 
 
 def test_price_change(make_doc, sample_topic, sample_task) -> None:

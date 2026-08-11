@@ -1,0 +1,18 @@
+# 含 overrides 的 Task fixture
+task:
+  id: task_with_overrides
+  topic_id: valid_charging_pile
+  enabled: true
+
+window:
+  type: rolling
+  days: 3
+
+overrides:
+  regions: [长三角]
+  companies: [特来电]
+  focus: [超充]
+
+output:
+  depth: quick
+  notify: false

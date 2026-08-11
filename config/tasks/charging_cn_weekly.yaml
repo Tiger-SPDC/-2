@@ -1,0 +1,22 @@
+# Task: 中国充电基础设施 · 每周情报
+# schema 见 config/tasks/_template.yaml
+
+task:
+  id: charging_cn_weekly
+  topic_id: charging_pile
+  enabled: true
+
+window:
+  type: rolling
+  days: 7
+
+# overrides 省略 = 取 Topic 默认值（region=中国，全部企业，核心词）
+# 如需覆盖可在此填写：
+# overrides:
+#   regions: [中国]
+#   companies: [特来电, 星星充电]
+#   focus: [充电桩]
+
+output:
+  depth: standard
+  notify: false

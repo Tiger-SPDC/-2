@@ -1,0 +1,29 @@
+# Task 模板（复制本文件为 config/tasks/<task_id>.yaml 后填写）
+# 说明：task.id 必须与文件名一致；task.topic_id 为必填，指向已存在的 Topic。
+
+task:
+  # 唯一标识，必须与文件名（不含 .yaml）一致
+  id: <task_id>
+  # 关联的 Topic id
+  topic_id: <topic_id>
+  # 是否启用
+  enabled: true
+
+# 时间窗口
+window:
+  type: rolling
+  days: 7
+
+# 本次运行覆盖项；省略 = 全部取 Topic 默认值
+# overrides:
+#   regions:        # 覆盖采集地区（缺省用 topic.scope.regions）
+#     - <地区>
+#   companies:      # 覆盖关注企业（缺省用 topic.entities.companies）
+#     - <企业规范名>
+#   focus:          # 覆盖核心词（缺省用 topic.keywords.core）
+#     - <核心词>
+
+# 输出参数
+output:
+  depth: standard   # quick | standard | deep
+  notify: false     # Phase 3 起生效

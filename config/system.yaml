@@ -1,0 +1,30 @@
+# 系统级配置（与行业无关）
+# 参考：docs/00_MASTER_PLAN.md §5.1
+
+system:
+  timezone: Asia/Shanghai
+  default_language: zh-CN
+
+collection:
+  max_concurrency: 5
+  request_timeout_seconds: 20
+  retries: 2
+  user_agent: industry-intelligence-agent
+  polite_delay_seconds: 1.5
+
+storage:
+  persistent_format: jsonl
+  save_raw_html: false
+  save_text_snapshot: true
+
+quality:
+  require_evidence_for_key_claim: true
+  reject_untraceable_numbers: true
+
+# Phase 2+ 再启用：
+# llm:
+#   provider: configurable
+# report:
+#   markdown: true
+#   excel: true
+#   wechat_digest: true

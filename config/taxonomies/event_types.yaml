@@ -1,0 +1,44 @@
+# 通用事件一级分类（参考 docs/00_MASTER_PLAN.md §12）
+# Topic Profile 可追加行业特有二级分类。
+
+event_types:
+  - id: strategy_change
+    name: 战略调整
+  - id: new_product
+    name: 新产品/产品升级
+  - id: technology_rd
+    name: 技术研发
+  - id: capacity_build
+    name: 产能建设
+  - id: investment_expansion
+    name: 投资扩产
+  - id: financing
+    name: 融资
+  - id: m_and_a
+    name: 并购
+  - id: bid_order
+    name: 中标/订单
+  - id: cooperation
+    name: 合作/签约
+  - id: channel_expansion
+    name: 渠道扩张
+  - id: overseas_expansion
+    name: 海外拓展
+  - id: price_change
+    name: 价格变化
+  - id: market_sales
+    name: 市场/销量/出货
+  - id: policy_regulation
+    name: 政策与监管
+  - id: financial_performance
+    name: 财务表现
+  - id: supply_chain
+    name: 供应链变化
+  - id: recall_accident
+    name: 召回/事故/质量
+  - id: personnel_change
+    name: 人事变动
+  - id: litigation_compliance
+    name: 诉讼/合规
+  - id: other
+    name: 其他

@@ -1,1 +1,5 @@
-"""采集引擎（Phase 1+ 实现）：下载、解析正文与内容指纹。"""
+"""采集编排：搜索计划生成、调度（Phase 2+）。"""
+
+from industry_intelligence.collectors.planner import SearchPlanner
+
+__all__ = ["SearchPlanner"]

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>测试充电桩资讯源</title>
+    <link>https://example.com/feed</link>
+    <description>用于离线单测的样例 RSS</description>
+    <item>
+      <title>全国充电桩保有量突破500万台</title>
+      <link>https://example.com/news/1</link>
+      <guid>example:news:1</guid>
+      <pubDate>Wed, 05 Aug 2026 08:00:00 GMT</pubDate>
+      <description>国家能源局披露最新充电基础设施运行数据，保有量持续增长。</description>
+    </item>
+    <item>
+      <title>特来电发布液冷超充新品</title>
+      <link>https://example.com/news/2</link>
+      <guid>example:news:2</guid>
+      <pubDate>Thu, 06 Aug 2026 09:30:00 GMT</pubDate>
+      <description>特来电宣布新一代液冷超充桩正式量产，单枪功率达600kW。</description>
+    </item>
+    <item>
+      <title>星星充电中标某省高速服务区充电站项目</title>
+      <link>https://example.com/news/3</link>
+      <guid>example:news:3</guid>
+      <pubDate>Fri, 07 Aug 2026 10:00:00 GMT</pubDate>
+      <description>星星充电联合体中标高速公路服务区充电站建设招标项目。</description>
+    </item>
+    <item>
+      <title>车网互动试点政策解读</title>
+      <link>https://example.com/news/4</link>
+      <guid>example:news:4</guid>
+      <pubDate>Sat, 08 Aug 2026 11:45:00 GMT</pubDate>
+      <description>多部门联合印发V2G车网互动试点通知，运营商迎来新机遇。</description>
+    </item>
+    <item>
+      <title>充电桩运营商运行数据周报</title>
+      <link>https://example.com/news/5</link>
+      <guid>example:news:5</guid>
+      <pubDate>Sun, 09 Aug 2026 14:20:00 GMT</pubDate>
+      <description>特来电与星星充电公布2026年充电基础设施运行数据，全国充电桩保有量突破500万台。</description>
+    </item>
+  </channel>
+</rss>

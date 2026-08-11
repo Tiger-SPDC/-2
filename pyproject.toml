@@ -4,11 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "industry-intelligence-agent"
-version = "0.1.0"
+version = "0.2.0a1"
 description = "通用产业竞争情报自动化 Agent（Industry Intelligence Agent）"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "PyYAML>=6.0",
+    "requests>=2.31",
+    "feedparser>=6.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -16,6 +20,7 @@ dev = [
     "pytest-cov>=5",
     "ruff>=0.6",
     "mypy>=1.11",
+    "types-PyYAML>=6.0",
 ]
 
 [tool.setuptools.packages.find]

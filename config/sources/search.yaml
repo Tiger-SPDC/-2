@@ -1,0 +1,27 @@
+# 搜索源注册表
+# Phase 2 接入真实搜索 API 时启用；Phase 1 采集依赖 RSS feed（见下方 rss_feeds）。
+# 任何密钥类配置禁止提交到仓库，一律通过环境变量注入（*.env 已在 .gitignore 中）。
+
+search:
+  sources:
+    - id: google_news
+      kind: rss_search
+      base_url: https://news.google.com/rss/search
+      params:
+        hl: zh-CN
+        gl: CN
+        ceid: CN:zh-Hans
+      api_key_env: null          # 就绪后填 SEARCH_API_KEY
+      max_results: 20
+      rate_limit_per_minute: 10
+    - id: baidu_news
+      kind: rss_search
+      base_url: https://www.baidu.com/news
+      params: {}
+      api_key_env: null
+      max_results: 20
+      rate_limit_per_minute: 10
+
+# Phase 1 演示/测试用 RSS 订阅源（业务采集启用前请替换为真实、获授权的 feed）
+rss_feeds:
+  demo_news: https://news.google.com/rss/search?q=%E5%85%85%E7%94%B5%E6%A1%A9&hl=zh-CN&gl=CN&ceid=CN:zh-Hans

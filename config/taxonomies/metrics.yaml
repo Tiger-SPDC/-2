@@ -1,0 +1,53 @@
+# 指标定义清单
+# 通用指标 + 主题特有指标由 Topic Profile 的 metrics 字段引用。
+
+metrics:
+  - id: shipment
+    name: 出货量
+    description: 企业对外出货数量
+    requires_period: true
+  - id: market_share
+    name: 市占率
+    description: 市场份额占比
+    requires_period: true
+  - id: price
+    name: 价格
+    description: 产品/服务价格
+    requires_period: false
+  - id: capacity
+    name: 产能
+    description: 生产能力
+    requires_period: false
+  - id: channel_inventory
+    name: 渠道库存
+    description: 渠道库存水平
+    requires_period: true
+  - id: dealer_expansion
+    name: 经销商扩张
+    description: 经销商/渠道数量变化
+    requires_period: false
+  - id: new_product
+    name: 新品
+    description: 新产品发布
+    requires_period: false
+  - id: certification
+    name: 认证
+    description: 产品认证
+    requires_period: false
+  # 充电基础设施主题特有指标
+  - id: station_count
+    name: 充电站数量
+    description: 充电站保有量
+    requires_period: true
+  - id: charger_count
+    name: 充电桩数量
+    description: 充电桩保有量
+    requires_period: true
+  - id: charging_volume
+    name: 充电量
+    description: 充电服务电量
+    requires_period: true
+  - id: utilization_rate
+    name: 利用率
+    description: 充电设施利用率
+    requires_period: true

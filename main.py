@@ -1,18 +1,180 @@
-"""Industry Intelligence Agent — 基础入口（Phase 0）。
+"""Industry Intelligence Agent — 命令行入口。
 
-本阶段仅作为项目 bootstrap 入口，不实现任何业务逻辑。
+用法：
+  python main.py --version                        显示版本
+  python main.py --validate                       校验全部配置
+  python main.py --topic <id> --task <id> [--output <jsonl>]  运行采集链路
 """
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+import yaml
 
 from industry_intelligence.version import __version__
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+CONFIG_DIR = PROJECT_ROOT / "config"
+DEFAULT_OUTPUT = PROJECT_ROOT / "output" / "collection.jsonl"
 
-def main() -> None:
-    """打印项目 bootstrap 信息。"""
-    print("Industry Intelligence Agent")
-    print("Project bootstrap initialized.")
-    print("Current phase: Phase 0")
-    print(f"Version: {__version__}")
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI 入口，返回进程退出码。"""
+    parser = argparse.ArgumentParser(
+        prog="industry-intelligence-agent",
+        description="Industry Intelligence Agent — 通用产业竞争情报自动化",
+    )
+    parser.add_argument("--version", action="store_true", help="显示版本号")
+    parser.add_argument("--validate", action="store_true", help="校验全部配置")
+    parser.add_argument("--topic", help="Topic id")
+    parser.add_argument("--task", help="Task id")
+    parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="输出 JSONL 路径")
+
+    args = parser.parse_args(argv)
+
+    if args.version:
+        print(f"industry-intelligence-agent {__version__}")
+        return 0
+    if args.validate:
+        return _cmd_validate()
+    if args.topic and args.task:
+        return _cmd_run(args.topic, args.task, args.output)
+
+    parser.print_help()
+    return 0
+
+
+def _cmd_validate() -> int:
+    """校验 config/ 下全部 Topic 与 Task 配置。"""
+    from industry_intelligence.config.loader import (
+        ConfigError,
+        load_system_config,
+        load_task,
+        load_topic,
+        resolve_task,
+    )
+
+    errors: list[str] = []
+    try:
+        load_system_config(CONFIG_DIR / "system.yaml")
+    except ConfigError as exc:
+        errors.append(str(exc))
+
+    topics: dict[str, object] = {}
+    for path in sorted((CONFIG_DIR / "topics").glob("*.yaml")):
+        topic_id = path.stem
+        if topic_id.startswith("_"):
+            continue
+        try:
+            topics[topic_id] = load_topic(topic_id, config_dir=CONFIG_DIR)
+        except ConfigError as exc:
+            errors.append(str(exc))
+
+    task_count = 0
+    for path in sorted((CONFIG_DIR / "tasks").glob("*.yaml")):
+        task_id = path.stem
+        if task_id.startswith("_"):
+            continue
+        task_count += 1
+        try:
+            task = load_task(task_id, config_dir=CONFIG_DIR)
+            if task.topic_id not in topics:
+                errors.append(
+                    f"Task '{task_id}' references unknown topic '{task.topic_id}'"
+                )
+                continue
+            resolve_task(task, topics[task.topic_id])  # type: ignore[arg-type]
+        except ConfigError as exc:
+            errors.append(str(exc))
+
+    if errors:
+        print(f"Validation failed: {len(errors)} error(s)")
+        for msg in errors:
+            print(f"  - {msg}")
+        return 1
+    print(f"Validation OK: {len(topics)} topic(s), {task_count} task(s)")
+    return 0
+
+
+def _cmd_run(topic_id: str, task_id: str, output: str) -> int:
+    """执行最小可用采集链路。"""
+    from industry_intelligence.collectors import SearchPlanner
+    from industry_intelligence.config.loader import (
+        ConfigError,
+        load_system_config,
+        load_task,
+        load_topic,
+        resolve_task,
+    )
+    from industry_intelligence.normalization import Deduplicator
+    from industry_intelligence.sources import RSSAdapter
+    from industry_intelligence.storage import JSONLStore
+
+    try:
+        sys_cfg = load_system_config(CONFIG_DIR / "system.yaml")
+        topic = load_topic(topic_id, config_dir=CONFIG_DIR)
+        task = resolve_task(load_task(task_id, config_dir=CONFIG_DIR), topic)
+    except ConfigError as exc:
+        print(f"Config error: {exc}")
+        return 1
+
+    plans = SearchPlanner().generate_plans(topic, task)
+    print(f"Planner: {len(plans)} query plan(s) for topic '{topic.id}'")
+
+    feeds = _load_rss_feeds()
+    if not feeds:
+        print(
+            "No rss_feeds configured in config/sources/search.yaml; nothing to collect."
+        )
+        return 0
+
+    adapter = RSSAdapter(feeds, timeout=sys_cfg.collection.request_timeout_seconds)
+    store = JSONLStore(output)
+    dedup = Deduplicator()
+
+    collected = 0
+    duplicates = 0
+    for item in adapter.discover(plans, context={}):
+        try:
+            raw = adapter.fetch(item)
+            parsed = adapter.parse(raw, item)
+            doc = adapter.normalize(parsed, topic_id=topic.id)
+        except Exception as exc:  # noqa: BLE001 — 单条失败不中断整体
+            print(f"  ! skipped {item.url}: {exc}")
+            continue
+        if dedup.register(doc):
+            store.append(doc)
+            collected += 1
+        else:
+            duplicates += 1
+
+    print(
+        f"Collected {collected} new document(s), "
+        f"{duplicates} duplicate(s) skipped."
+    )
+    print(f"Output: {store.path}")
+    return 0
+
+
+def _load_rss_feeds() -> dict[str, str]:
+    """从 config/sources/search.yaml 读取 rss_feeds（行业数据在配置，不在代码）。"""
+    sources_path = CONFIG_DIR / "sources" / "search.yaml"
+    if not sources_path.is_file():
+        return {}
+    try:
+        data = yaml.safe_load(sources_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    feeds = data.get("rss_feeds", {})
+    if not isinstance(feeds, dict):
+        return {}
+    return {str(k): str(v) for k, v in feeds.items() if v}
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

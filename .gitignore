@@ -20,6 +20,7 @@ htmlcov/
 # Local data / caches
 logs/*
 !logs/.gitkeep
+output/*.jsonl
 data/raw/*
 !data/raw/.gitkeep
 data/normalized/*

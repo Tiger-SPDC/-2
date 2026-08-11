@@ -1,0 +1,9 @@
+# 无效 Topic fixture：缺少必填字段 keywords.core
+topic:
+  id: invalid_topic
+  name: 无效主题
+  version: "0.1.0"
+
+scope:
+  regions:
+    - 中国

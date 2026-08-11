@@ -1,0 +1,68 @@
+# Topic: 中国充电基础设施
+# 行业长期知识包。schema 见 config/topics/_template.yaml
+
+topic:
+  id: charging_pile
+  name: 中国充电基础设施
+  version: "0.1.0"
+
+scope:
+  regions:
+    - 中国
+  default_window_days: 7
+
+entities:
+  companies:
+    - canonical_name: 特来电
+      aliases:
+        - 特来电新能源
+      priority: 1
+    - canonical_name: 星星充电
+      aliases:
+        - 星星充电桩
+      priority: 1
+    - canonical_name: 国家电网
+      aliases:
+        - 国网充电
+      priority: 2
+    - canonical_name: 南方电网
+      aliases:
+        - 南网充电
+      priority: 2
+    - canonical_name: 云快充
+      aliases: []
+      priority: 2
+
+keywords:
+  core:
+    - 充电桩
+    - 充电基础设施
+  products:
+    - 直流充电桩
+    - 交流充电桩
+    - 液冷超充
+    - 光储充一体化
+  market:
+    - 保有量
+    - 装机量
+    - 利用率
+    - 运营商
+  technology:
+    - 大功率快充
+    - 有序充电
+    - 车网互动
+    - V2G
+  events:
+    - 政策
+    - 招标
+    - 补贴
+    - 发布
+  exclude:
+    - 招聘
+    - 二手车
+
+metrics:
+  - station_count
+  - charger_count
+  - charging_volume
+  - utilization_rate

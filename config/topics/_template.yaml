@@ -1,0 +1,48 @@
+# Topic 模板（复制本文件为 config/topics/<topic_id>.yaml 后填写）
+# 说明：topic.id 必须与文件名一致；scope.regions 与 keywords.core 为必填。
+
+topic:
+  # 唯一标识，必须与文件名（不含 .yaml）一致
+  id: <topic_id>
+  # 人类可读名称
+  name: <主题名称>
+  # 版本号，结构变更时递增
+  version: "0.1.0"
+
+# 采集范围
+scope:
+  regions:
+    - <地区1>
+    - <地区2>
+  # 默认时间窗口（天），Task 可覆盖
+  default_window_days: 7
+
+# 关注的实体
+entities:
+  companies:
+    - canonical_name: <企业规范名>
+      aliases:
+        - <别名1>
+      priority: 1  # 数字越小优先级越高
+    - canonical_name: <企业2>
+      aliases: []
+      priority: 2
+
+# 关键词分组（搜索计划生成依据）
+keywords:
+  core:        # 必填，核心词
+    - <核心词>
+  products:    # 产品/服务
+    - <产品词>
+  market:      # 市场/经营
+    - <市场词>
+  technology:  # 技术
+    - <技术词>
+  events:      # 事件类
+    - <事件词>
+  exclude:     # 排除词
+    - <排除词>
+
+# 关注的指标（id 参考 config/taxonomies/metrics.yaml）
+metrics:
+  - <metric_id>

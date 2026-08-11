@@ -1,0 +1,13 @@
+# 有效 Task fixture
+task:
+  id: valid_weekly
+  topic_id: valid_charging_pile
+  enabled: true
+
+window:
+  type: rolling
+  days: 7
+
+output:
+  depth: standard
+  notify: false

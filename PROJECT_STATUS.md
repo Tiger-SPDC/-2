@@ -81,6 +81,7 @@
 - [x] GitHub Actions Manual Run 验收：Run `fb94fbed3db94b29 [success]` — 50 doc / 25 Claim / 100% 证据覆盖 / Review 25 pass·0 reject·0 downgrade / **notified**（微信摘要推送成功）；数据与报告 auto-commit 回仓库，Artifact 已上传
 - [x] GitHub Actions Manual Run（v0.7.0a1 网页搜索）：Run `31557514525 [success]` — `data/collection.jsonl` 新增 13 条 `websearch:bing`（美区 runner 成功抓 Bing，family=company，extra 追溯正常）；`site:` 官方查询在美区 Bing 零结果属地理差异（本地中国网络命中 6 条 gov.cn）
 - [x] GitHub Actions Manual Run（v0.7.0a2 摘要精简）：Run `31559108956 [success]` — 微信推送 `digest.txt` 实为 **581 字 ≤ 600**，3 节结构（一句话判断 / 最重要的 5 件事 / 企业竞争变化）+ 数据质量 + 完整报告；数据与报告 auto-commit 回仓库
+- [x] GitHub Actions Manual Run（v0.7.0a5 动态热点）：Run `31575727952 [success]` — **Hot topics (10)** 由 LLM 生成（液冷超充华为全液冷超充站 / V2G 车网互动试点政策 / 光储充一体化 / 有序充电 / 大功率快充充电标准 / 充电桩出口海外 / 下乡补贴政策…），Run 摘要 `hot topics 10` 可观测 → Pipeline 收到热点并走热点族计划；50 doc 全为 RSS（美区 Bing 对中文热点查询返回垃圾被门控，属既有地理差异优雅降级，本地中国网络可命中）；微信推送 **notified**，摘要三节完整 + 数据质量 High；Run 状态 `[partial]` 仅因 review LLM 间歇性无效 JSON（v0.6.1a1 已知降级，报告/推送不受影响）；`data/collection.jsonl` / `data/push_log.jsonl` / 报告 auto-commit
 
 ## 尚未开始
 

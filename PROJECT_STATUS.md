@@ -76,6 +76,8 @@
 - [x] GitHub 远端仓库绑定：`origin` = `https://github.com/grchuizi/-2.git`，`main` 已推送
 - [x] Secrets 配置：`DEEPSEEK_API_KEY` / `SERVERCHAN_KEY`（经 GitHub API + libsodium 加密设置，未落库、未提交）
 - [x] GitHub Actions Manual Run 验收：Run `fb94fbed3db94b29 [success]` — 50 doc / 25 Claim / 100% 证据覆盖 / Review 25 pass·0 reject·0 downgrade / **notified**（微信摘要推送成功）；数据与报告 auto-commit 回仓库，Artifact 已上传
+- [x] GitHub Actions Manual Run（v0.7.0a1 网页搜索）：Run `31557514525 [success]` — `data/collection.jsonl` 新增 13 条 `websearch:bing`（美区 runner 成功抓 Bing，family=company，extra 追溯正常）；`site:` 官方查询在美区 Bing 零结果属地理差异（本地中国网络命中 6 条 gov.cn）
+- [x] GitHub Actions Manual Run（v0.7.0a2 摘要精简）：Run `31559108956 [success]` — 微信推送 `digest.txt` 实为 **581 字 ≤ 600**，3 节结构（一句话判断 / 最重要的 5 件事 / 企业竞争变化）+ 数据质量 + 完整报告；数据与报告 auto-commit 回仓库
 
 ## 尚未开始
 

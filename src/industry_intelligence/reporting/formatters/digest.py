@@ -3,6 +3,8 @@
 纯文本（不含 Markdown 语法），总字数（含标点）≤600。结构：
 一、本周一句话判断；二、最重要的 5 件事（行业相关）；三、企业竞争变化（企业相关）。
 数据全部来自 ReportDataBundle。超长时只截正文，数据质量等级与完整报告链接始终保留。
+v0.7.0a6：顶部新增"本期热点关注"行（LLM 动态热点）；5 件事优先排命中热点的
+事件；企业节内容优先——有实际动态的企业先列，无动态不再占用位置。
 """
 
 from __future__ import annotations
@@ -12,6 +14,9 @@ from industry_intelligence.reporting.builder import ReportDataBundle
 
 # 摘要总字数上限（Server酱单条消息限制内，含标点）
 _MAX_CHARS = 600
+
+# 企业节最小条数：有动态的企业不足此数时才用跟踪企业"暂无动态"补足
+_MIN_ENTITY_LINES = 3
 
 
 def _to_float(value: object, default: float = 0.0) -> float:
@@ -38,8 +43,13 @@ class DigestFormatter:
         parts: list[str] = []
         parts.append(f"【产业竞争情报周报 | {bundle.topic_id}】")
         parts.append(f"周期：{bundle.period_start} ~ {bundle.period_end}")
-        parts.append("")
 
+        hot_line = self._hot_topics_line(bundle)
+        if hot_line:
+            parts.append("")
+            parts.append(hot_line)
+
+        parts.append("")
         parts.append("一、本周一句话判断")
         parts.append(self._one_liner(bundle) or "暂无明确判断。")
         parts.append("")
@@ -78,12 +88,21 @@ class DigestFormatter:
         return ""
 
     def _top5(self, bundle: ReportDataBundle) -> list[str]:
-        """按事件日期取最近 5 条，无事件时取高置信度事实结论。"""
+        """按事件日期取最近 5 条，命中本期热点的事件优先；无事件时取高置信度事实。
+
+        v0.7.0a6：当次 LLM 热点短语若出现在事件标题/摘要中，该事件排在更前面，
+        让推送真正反映热点内容；热点为空时行为与之前完全一致（按日期倒序）。
+        """
+        hot = [str(t).strip() for t in bundle.hot_topics if str(t).strip()]
         events = sorted(
             bundle.events,
             key=lambda e: str(e.get("event_date", "")),
             reverse=True,
         )
+        if hot:
+            events.sort(
+                key=lambda e: 0 if self._matches_hot(e, hot) else 1
+            )  # 稳定排序：命中热点的事件排前，组内仍按日期倒序
         out = [str(e.get("title", "")) for e in events[:5] if e.get("title")]
         if out:
             return out
@@ -94,11 +113,32 @@ class DigestFormatter:
         )
         return [str(c.get("claim_text", "")) for c in facts[:5] if c.get("claim_text")]
 
-    def _entity_changes(self, bundle: ReportDataBundle) -> list[str]:
-        """企业竞争变化：跟踪企业 + 事件/主张汇总，输出至多 5 条。
+    def _matches_hot(self, event: dict[str, object], hot: list[str]) -> bool:
+        """事件标题/摘要是否命中任一热点短语（casefold 子串匹配）。"""
+        text = " ".join(
+            str(event.get(k, "")) for k in ("title", "summary")
+        ).casefold()
+        return any(h.casefold() in text for h in hot)
 
-        先列有实际动态的（跟踪企业优先，其次出现的事件实体），
-        再用跟踪企业的"本期暂无动态"补足到 5 条，保证企业节信息完整。
+    def _hot_topics_line(self, bundle: ReportDataBundle) -> str:
+        """本期热点关注行：展示最多 3 条 LLM 动态热点，超长截断保字数。"""
+        topics = [str(t).strip() for t in bundle.hot_topics if str(t).strip()]
+        if not topics:
+            return ""
+        shown = "、".join(topics[:3])
+        if len(topics) > 3:
+            shown += "…"
+        if len(shown) > 42:
+            shown = shown[:42].rstrip("、") + "…"
+        return f"本期热点关注：{shown}"
+
+    def _entity_changes(self, bundle: ReportDataBundle) -> list[str]:
+        """企业竞争变化：内容优先，任何有实际动态的企业（含非跟踪）都上屏。
+
+        候选实体 = 跟踪企业 + 主张中出现的企业 + 事件中出现的企业（去重、跟踪优先）。
+        先列有实际动态的（最多 5 条）；有动态的不足 _MIN_ENTITY_LINES 条时才用
+        跟踪企业的"本期暂无动态"补足到 _MIN_ENTITY_LINES 条——避免空节，
+        但不让无内容企业占用有内容企业的位置。
         """
         claim_by_entity: dict[str, list[dict[str, object]]] = {}
         for c in bundle.claims:
@@ -112,20 +152,26 @@ class DigestFormatter:
                 if eid:
                     event_by_entity.setdefault(eid, []).append(ev)
         tracked = [str(c["name"]) for c in bundle.companies if c.get("name")]
+        # 候选实体：跟踪企业优先，其次主张/事件中出现的企业（去重保序）
+        candidates: list[str] = []
+        for entity in tracked + list(claim_by_entity) + list(event_by_entity):
+            if entity and entity not in candidates:
+                candidates.append(entity)
         out: list[str] = []
-        # 1) 有实际动态的实体（跟踪企业优先，其次事件中出现的企业）
-        for entity in tracked + [e for e in event_by_entity if e not in tracked]:
+        # 1) 有实际动态的实体（跟踪优先，其次数据中出现的企业）
+        for entity in candidates:
             if len(out) >= 5:
                 break
             text = self._entity_activity(entity, claim_by_entity, event_by_entity)
             if text:
                 out.append(f"- {entity}：{text}")
-        # 2) 用跟踪企业的"本期暂无动态"补足到 5 条
-        for entity in tracked:
-            if len(out) >= 5:
-                break
-            if not self._entity_activity(entity, claim_by_entity, event_by_entity):
-                out.append(f"- {entity}：本期暂无动态")
+        # 2) 有动态的不足 _MIN_ENTITY_LINES 条时，用跟踪企业"本期暂无动态"补足
+        if len(out) < _MIN_ENTITY_LINES:
+            for entity in tracked:
+                if len(out) >= _MIN_ENTITY_LINES:
+                    break
+                if not self._entity_activity(entity, claim_by_entity, event_by_entity):
+                    out.append(f"- {entity}：本期暂无动态")
         return out[:5]
 
     def _entity_activity(

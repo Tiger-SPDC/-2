@@ -116,6 +116,18 @@ def test_build_forwards_indices_and_trends(
     assert bundle.trends["event_velocity"][0]["current_value"] == 2.0
 
 
+def test_build_forwards_hot_topics(make_doc, sample_topic, sample_task) -> None:
+    """build() 透传 LLM 动态热点到 bundle，供摘要/报告展示。"""
+    store = _seed_store(make_doc)
+    bundle = _builder(store, sample_topic, sample_task).build(
+        "r1", hot_topics=["液冷超充", "V2G"]
+    )
+    assert bundle.hot_topics == ["液冷超充", "V2G"]
+    # 缺省为空列表，不抛错
+    empty = _builder(store, sample_topic, sample_task).build("r1")
+    assert empty.hot_topics == []
+
+
 def test_engine_build_shared_bundle(
     make_doc, sample_topic, sample_task, tmp_path
 ) -> None:

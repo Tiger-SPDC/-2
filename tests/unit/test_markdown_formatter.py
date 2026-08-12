@@ -37,6 +37,18 @@ def _bundle(**overrides) -> ReportDataBundle:
     return ReportDataBundle(**kwargs)
 
 
+def test_executive_summary_shows_hot_topics_when_present() -> None:
+    """执行摘要展示 LLM 热点关注行（有则显示）。"""
+    text = MarkdownFormatter().render(_bundle(hot_topics=["液冷超充", "V2G"]))
+    assert "本期热点关注：液冷超充、V2G" in text
+
+
+def test_executive_summary_omits_hot_topics_when_empty() -> None:
+    """无热点时不出现热点行。"""
+    text = MarkdownFormatter().render(_bundle())
+    assert "本期热点关注" not in text
+
+
 def test_render_contains_all_section_headers() -> None:
     md = MarkdownFormatter().render(_bundle())
     for title in (

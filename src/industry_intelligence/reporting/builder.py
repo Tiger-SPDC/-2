@@ -43,6 +43,8 @@ class ReportDataBundle:
     trends: dict[str, list[dict[str, object]]] = field(default_factory=dict)
     review_results: list[dict[str, object]] = field(default_factory=list)
     quality: dict[str, float] = field(default_factory=dict)
+    # 当次运行 LLM 发现的动态热点话题（v0.7.0a6 起进入报表，摘要顶部展示）
+    hot_topics: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
@@ -68,6 +70,7 @@ class ReportDataBuilder:
         indices: Sequence[object] | None = None,
         trends: Mapping[str, Sequence[object]] | None = None,
         errors: Sequence[str] | None = None,
+        hot_topics: Sequence[str] | None = None,
     ) -> ReportDataBundle:
         """组装报表数据。
 
@@ -86,6 +89,7 @@ class ReportDataBuilder:
             period_start=cur_start,
             period_end=cur_end,
             errors=list(errors or []),
+            hot_topics=list(hot_topics or []),
         )
         bundle.documents = self._query_documents(cur_start, cur_end)
         bundle.events = self._query_events(cur_start, cur_end)

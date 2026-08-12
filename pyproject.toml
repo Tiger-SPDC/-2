@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "industry-intelligence-agent"
-version = "0.7.0a5"
+version = "0.7.0a6"
 description = "通用产业竞争情报自动化 Agent（Industry Intelligence Agent）"
 readme = "README.md"
 requires-python = ">=3.11"

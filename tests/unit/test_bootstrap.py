@@ -17,12 +17,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_package_importable() -> None:
-    assert industry_intelligence.__version__ == "0.7.0a5"
+    assert industry_intelligence.__version__ == "0.7.0a6"
 
 
 def test_version_exists() -> None:
     assert isinstance(__version__, str)
-    assert __version__ == "0.7.0a5"
+    assert __version__ == "0.7.0a6"
 
 
 def test_main_entry_runs() -> None:
@@ -40,4 +40,4 @@ def test_main_entry_runs() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "industry-intelligence-agent" in result.stdout
-    assert "0.7.0a5" in result.stdout
+    assert "0.7.0a6" in result.stdout

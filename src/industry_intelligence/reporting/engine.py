@@ -58,6 +58,7 @@ class ReportEngine:
         indices: Sequence[object] | None = None,
         trends: Mapping[str, Sequence[object]] | None = None,
         errors: Sequence[str] | None = None,
+        hot_topics: Sequence[str] | None = None,
     ) -> ReportEngineResult:
         result = ReportEngineResult(run_id=run_id)
         try:
@@ -70,6 +71,7 @@ class ReportEngine:
                 indices=indices,
                 trends=trends,
                 errors=errors,
+                hot_topics=hot_topics,
             )
         except Exception as exc:  # noqa: BLE001 — 数据构建失败不中断 pipeline
             result.errors.append(f"report build: {exc}")

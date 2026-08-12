@@ -238,6 +238,7 @@ class Pipeline:
                     for idx in analysis.indices
                 ],
                 trends=result.trends,
+                hot_topics=result.hot_topics,
             )
         except Exception as exc:  # noqa: BLE001 — 报告失败不中断整体
             result.errors.append(f"report engine: {exc}")

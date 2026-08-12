@@ -66,6 +66,10 @@ class MarkdownFormatter:
 
     def _executive_summary(self, bundle: ReportDataBundle) -> str:
         lines = ["## 1. 执行摘要", ""]
+        hot = [str(t).strip() for t in bundle.hot_topics if str(t).strip()]
+        if hot:
+            lines.append("本期热点关注：" + "、".join(hot[:6]))
+            lines.append("")
         facts = [c for c in bundle.claims if c.get("claim_type") == CLAIM_TYPE_FACT]
         top = sorted(facts, key=lambda c: _to_float(c.get("confidence")), reverse=True)[:3]
         if top:

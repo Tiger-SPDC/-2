@@ -73,6 +73,36 @@ def test_report_path_appended() -> None:
     assert "完整报告：output/r1/report.md" in text
 
 
+def test_hot_topics_line_rendered_when_present() -> None:
+    """有 LLM 热点时，摘要顶部出现"本期热点关注"行。"""
+    text = DigestFormatter().render(
+        _bundle(hot_topics=["液冷超充", "V2G 车网互动", "光储充一体化"])
+    )
+    assert "本期热点关注：液冷超充、V2G 车网互动、光储充一体化" in text
+
+
+def test_hot_topics_line_omitted_when_empty() -> None:
+    """无热点时无热点行，摘要仍为 3 节结构。"""
+    text = DigestFormatter().render(_bundle())
+    assert "本期热点关注" not in text
+    assert "一、本周一句话判断" in text
+
+
+def test_top5_prioritizes_hot_matching_event() -> None:
+    """5 件事按热点命中优先排序，再按日期。"""
+    events = [
+        {"event_id": "e_other", "event_type_id": "t", "title": "普通充电新闻",
+         "event_date": "2026-01-08", "summary": "无关内容", "confidence": 1.0},
+        {"event_id": "e_hot", "event_type_id": "t", "title": "液冷超充站落地北京",
+         "event_date": "2026-01-06", "summary": "液冷超充 光储充一体化", "confidence": 1.0},
+    ]
+    text = DigestFormatter().render(
+        _bundle(events=events, hot_topics=["液冷超充"])
+    )
+    section = text.split("二、最重要的 5 件事")[1].split("三、企业竞争变化")[0]
+    assert section.index("液冷超充站落地北京") < section.index("普通充电新闻")
+
+
 def test_long_text_truncated() -> None:
     long_claim = {"claim_id": "c1", "claim_text": "长" * 500,
                   "claim_type": "fact", "confidence": 0.9,
@@ -87,8 +117,8 @@ def test_long_text_truncated() -> None:
     assert "完整报告：output/r1/report.md" in text
 
 
-def test_entity_changes_five_lines_with_filler() -> None:
-    """三、企业竞争变化：5 家跟踪企业输出 5 条，无动态的以"暂无动态"补足。"""
+def test_entity_changes_fills_up_to_min_when_sparse() -> None:
+    """三、企业竞争变化：内容优先——只有 1 家有动态时，暂无动态只补到最小条数。"""
     companies = [{"name": n} for n in
                  ("特来电", "星星充电", "国家电网", "南方电网", "云快充")]
     text = DigestFormatter().render(_bundle(companies=companies))
@@ -96,10 +126,9 @@ def test_entity_changes_five_lines_with_filler() -> None:
     lines = [
         line for line in section.splitlines() if line.startswith("- ")
     ]
-    assert len(lines) == 5
+    assert len(lines) == 3
     assert lines[0] == "- 特来电：[事实] 特来电发布液冷超充新品，市场热度显著上升"
-    assert "本期暂无动态" in section
-    assert section.count("本期暂无动态") == 4
+    assert section.count("本期暂无动态") == 2
 
 
 def test_entity_changes_claim_preferred_over_event() -> None:
@@ -128,8 +157,31 @@ def test_entity_changes_includes_non_tracked_event_entity() -> None:
     lines = [
         line for line in section.splitlines() if line.startswith("- ")
     ]
-    assert len(lines) == 5
+    assert len(lines) == 3
     assert lines[0] == "- 特来电：[事实] 特来电发布液冷超充新品，市场热度显著上升"
     assert "- 蔚来：[事件] 蔚来发布超充网络计划" in lines
-    # 未跟踪实体占一位后，暂无动态应少一位（4 - 1 = 3）
-    assert section.count("本期暂无动态") == 3
+    # 有动态的有 2 家（特来电、蔚来），暂无动态只补到 3 条最小数（1 条）
+    assert section.count("本期暂无动态") == 1
+
+
+def test_entity_changes_includes_non_tracked_claim_entity() -> None:
+    """主张（claim）中出现但未跟踪的企业也纳入动态——比亚迪/蔚来等应上屏。"""
+    claims = [
+        {"claim_id": "c1", "claim_text": "特来电发布液冷超充新品，市场热度显著上升",
+         "claim_type": "fact", "confidence": 0.9, "entity_id": "特来电",
+         "analysis_type": "technology"},
+        {"claim_id": "c2", "claim_text": "比亚迪闪充技术落地 30%→80% 只需 10 分钟",
+         "claim_type": "fact", "confidence": 0.85, "entity_id": "比亚迪",
+         "analysis_type": "technology"},
+    ]
+    companies = [{"name": n} for n in ("特来电", "国家电网", "云快充")]
+    text = DigestFormatter().render(_bundle(claims=claims, companies=companies))
+    section = text.split("三、企业竞争变化")[1]
+    lines = [
+        line for line in section.splitlines() if line.startswith("- ")
+    ]
+    # 有动态的有 2 家（特来电、比亚迪），排在前面；暂无动态只补到 3 条最小数
+    assert any(line.startswith("- 比亚迪：[事实] 比亚迪闪充技术落地") for line in lines)
+    assert lines[1].startswith("- 比亚迪：")
+    assert section.count("本期暂无动态") == 1
+    assert len(lines) == 3

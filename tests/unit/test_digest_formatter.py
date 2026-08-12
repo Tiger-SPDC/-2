@@ -85,3 +85,51 @@ def test_long_text_truncated() -> None:
     assert len(text) <= _MAX_CHARS
     # 超长时只截正文，报告链接必须保留
     assert "完整报告：output/r1/report.md" in text
+
+
+def test_entity_changes_five_lines_with_filler() -> None:
+    """三、企业竞争变化：5 家跟踪企业输出 5 条，无动态的以"暂无动态"补足。"""
+    companies = [{"name": n} for n in
+                 ("特来电", "星星充电", "国家电网", "南方电网", "云快充")]
+    text = DigestFormatter().render(_bundle(companies=companies))
+    section = text.split("三、企业竞争变化")[1]
+    lines = [
+        line for line in section.splitlines() if line.startswith("- ")
+    ]
+    assert len(lines) == 5
+    assert lines[0] == "- 特来电：[事实] 特来电发布液冷超充新品，市场热度显著上升"
+    assert "本期暂无动态" in section
+    assert section.count("本期暂无动态") == 4
+
+
+def test_entity_changes_claim_preferred_over_event() -> None:
+    """同一实体同时有主张与事件时，优先展示分析主张。"""
+    event = {
+        "event_id": "e1", "event_type_id": "other", "title": "特来电新站开业",
+        "event_date": "2026-01-06", "summary": "s", "entity_ids": ["特来电"],
+        "confidence": 1.0, "document_ids": [],
+    }
+    text = DigestFormatter().render(_bundle(events=[event]))
+    section = text.split("三、企业竞争变化")[1]
+    assert "- 特来电：[事实] 特来电发布液冷超充新品" in section
+    assert "[事件] 特来电新站开业" not in section
+
+
+def test_entity_changes_includes_non_tracked_event_entity() -> None:
+    """事件中出现但未跟踪的企业也纳入动态，排在跟踪企业之后、暂无动态之前。"""
+    event = {
+        "event_id": "e1", "event_type_id": "other", "title": "蔚来发布超充网络计划",
+        "event_date": "2026-01-06", "summary": "s", "entity_ids": ["蔚来"],
+        "confidence": 1.0, "document_ids": [],
+    }
+    companies = [{"name": n} for n in ("特来电", "星星充电", "国家电网", "南方电网", "云快充")]
+    text = DigestFormatter().render(_bundle(events=[event], companies=companies))
+    section = text.split("三、企业竞争变化")[1]
+    lines = [
+        line for line in section.splitlines() if line.startswith("- ")
+    ]
+    assert len(lines) == 5
+    assert lines[0] == "- 特来电：[事实] 特来电发布液冷超充新品，市场热度显著上升"
+    assert "- 蔚来：[事件] 蔚来发布超充网络计划" in lines
+    # 未跟踪实体占一位后，暂无动态应少一位（4 - 1 = 3）
+    assert section.count("本期暂无动态") == 3

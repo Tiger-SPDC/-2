@@ -24,6 +24,13 @@ def _to_float(value: object, default: float = 0.0) -> float:
         return default
 
 
+def _as_list(value: object | None) -> list[object]:
+    """把 bundle 里可能为 list/None 的字段安全转成 list（mypy 友好）。"""
+    if not isinstance(value, list):
+        return []
+    return value
+
+
 class DigestFormatter:
     """把 ReportDataBundle 渲染为微信推送摘要文本。"""
 
@@ -88,17 +95,57 @@ class DigestFormatter:
         return [str(c.get("claim_text", "")) for c in facts[:5] if c.get("claim_text")]
 
     def _entity_changes(self, bundle: ReportDataBundle) -> list[str]:
-        by_entity: dict[str, list[dict[str, object]]] = {}
+        """企业竞争变化：跟踪企业 + 事件/主张汇总，输出至多 5 条。
+
+        先列有实际动态的（跟踪企业优先，其次出现的事件实体），
+        再用跟踪企业的"本期暂无动态"补足到 5 条，保证企业节信息完整。
+        """
+        claim_by_entity: dict[str, list[dict[str, object]]] = {}
         for c in bundle.claims:
             entity = str(c.get("entity_id") or "")
             if entity:
-                by_entity.setdefault(entity, []).append(c)
+                claim_by_entity.setdefault(entity, []).append(c)
+        event_by_entity: dict[str, list[dict[str, object]]] = {}
+        for ev in bundle.events:
+            for eid in _as_list(ev.get("entity_ids")):
+                eid = str(eid)
+                if eid:
+                    event_by_entity.setdefault(eid, []).append(ev)
+        tracked = [str(c["name"]) for c in bundle.companies if c.get("name")]
         out: list[str] = []
-        for entity, claims in by_entity.items():
+        # 1) 有实际动态的实体（跟踪企业优先，其次事件中出现的企业）
+        for entity in tracked + [e for e in event_by_entity if e not in tracked]:
+            if len(out) >= 5:
+                break
+            text = self._entity_activity(entity, claim_by_entity, event_by_entity)
+            if text:
+                out.append(f"- {entity}：{text}")
+        # 2) 用跟踪企业的"本期暂无动态"补足到 5 条
+        for entity in tracked:
+            if len(out) >= 5:
+                break
+            if not self._entity_activity(entity, claim_by_entity, event_by_entity):
+                out.append(f"- {entity}：本期暂无动态")
+        return out[:5]
+
+    def _entity_activity(
+        self,
+        entity: str,
+        claim_by_entity: dict[str, list[dict[str, object]]],
+        event_by_entity: dict[str, list[dict[str, object]]],
+    ) -> str:
+        """实体的动态文案：优先分析主张，其次最新事件标题。"""
+        claims = claim_by_entity.get(entity)
+        if claims:
             top = claims[0]
             label = "[事实]" if top.get("claim_type") == CLAIM_TYPE_FACT else "[推断]"
-            out.append(f"- {entity}：{label} {top.get('claim_text', '')}")
-        return out[:5]
+            return f"{label} {top.get('claim_text', '')}"
+        events = event_by_entity.get(entity)
+        if events:
+            title = str(events[0].get("title") or "").strip()
+            if title:
+                return f"[事件] {title}"
+        return ""
 
     def _quality_level(self, bundle: ReportDataBundle) -> str:
         coverage = float(bundle.quality.get("evidence_coverage", 0.0))

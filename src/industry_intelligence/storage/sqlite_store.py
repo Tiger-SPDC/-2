@@ -14,6 +14,7 @@ from pathlib import Path
 from industry_intelligence.core.document import NormalizedDocument
 from industry_intelligence.intelligence.models import Event
 from industry_intelligence.metrics.models import Observation
+from industry_intelligence.utils.relevance import is_relevant
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -590,6 +591,66 @@ class SQLiteStore:
             " ORDER BY fetched_at",
             (topic_id, start_date, end_date),
         ).fetchall()
+
+    def purge_irrelevant_documents(self, terms: list[str]) -> int:
+        """删除来源为 websearch 且不命中相关性词条的文档及其级联数据。
+
+        仅针对非 RSS/官方来源的垃圾文档（如搜索引擎返回的无关异域页面），
+        返回删除的文档数。级联顺序先摘证据/事件链接（避免 ON DELETE SET NULL
+        触发 claim_evidence 的 CHECK），再删孤立事件、观察与文档本身。
+        """
+        if not terms:
+            return 0
+        candidates = self._conn.execute(
+            "SELECT document_id, title, content_text FROM documents"
+            " WHERE source_id LIKE 'websearch:%'"
+        ).fetchall()
+        doc_ids = [
+            str(r["document_id"])
+            for r in candidates
+            if not is_relevant(str(r["title"] or ""), str(r["content_text"] or ""), terms)
+        ]
+        if not doc_ids:
+            return 0
+        placeholders = ",".join("?" * len(doc_ids))
+        # 收集这些文档的观察，一并摘除证据链接
+        obs_ids = [
+            str(r["observation_id"])
+            for r in self._conn.execute(
+                f"SELECT observation_id FROM observations"
+                f" WHERE document_id IN ({placeholders})",
+                doc_ids,
+            ).fetchall()
+        ]
+        if obs_ids:
+            self._conn.execute(
+                f"DELETE FROM claim_evidence WHERE observation_id IN"
+                f" ({','.join('?' * len(obs_ids))})",
+                obs_ids,
+            )
+        self._conn.execute(
+            f"DELETE FROM claim_evidence WHERE document_id IN ({placeholders})",
+            doc_ids,
+        )
+        self._conn.execute(
+            f"DELETE FROM event_documents WHERE document_id IN ({placeholders})",
+            doc_ids,
+        )
+        # 删除不再关联任何文档的孤立事件
+        self._conn.execute(
+            "DELETE FROM events WHERE event_id NOT IN"
+            " (SELECT DISTINCT event_id FROM event_documents)"
+        )
+        self._conn.execute(
+            f"DELETE FROM observations WHERE document_id IN ({placeholders})",
+            doc_ids,
+        )
+        self._conn.execute(
+            f"DELETE FROM documents WHERE document_id IN ({placeholders})",
+            doc_ids,
+        )
+        self._conn.commit()
+        return len(doc_ids)
 
     def query_events_by_entity(
         self,

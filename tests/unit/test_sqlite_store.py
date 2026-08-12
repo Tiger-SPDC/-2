@@ -202,6 +202,46 @@ def test_event_document_foreign_key_enforced() -> None:
         store.insert_event(event)
 
 
+def test_purge_irrelevant_websearch_documents(make_doc) -> None:
+    """清理：仅删除不命中的 websearch 文档及其级联事件，相关/ RSS 文档保留。"""
+    store = SQLiteStore(":memory:")
+    store.insert_document(
+        make_doc(document_id="j1", source_id="websearch:bing",
+                 title="Brisbane Story Bridge Climb",
+                 content_text="Australia tourism attraction")
+    )
+    store.insert_document(
+        make_doc(document_id="r1", source_id="websearch:bing",
+                 title="特来电推出液冷超充", content_text="充电桩产业动态")
+    )
+    store.insert_document(
+        make_doc(document_id="d1", source_id="rss:demo", title="任意 RSS 标题")
+    )
+    store.insert_event(
+        Event(event_id="e1", event_type_id="other", title="Brisbane",
+              event_date="2026-08-12", summary="s", document_ids=["j1"],
+              entity_ids=[], confidence=1.0, topic_id="t1")
+    )
+    purged = store.purge_irrelevant_documents(["充电桩", "特来电", "液冷超充"])
+    assert purged == 1
+    remaining = {r["document_id"] for r in
+                 store._conn.execute("SELECT document_id FROM documents").fetchall()}
+    assert remaining == {"r1", "d1"}
+    # 垃圾事件随之清理（不再关联任何文档）
+    assert store._conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 0
+    # 相关 websearch 文档的事件关联不受影响
+    assert store._conn.execute("SELECT COUNT(*) FROM event_documents").fetchone()[0] == 0
+
+
+def test_purge_no_terms_is_noop(make_doc) -> None:
+    store = SQLiteStore(":memory:")
+    store.insert_document(
+        make_doc(document_id="j1", source_id="websearch:bing", title="任意")
+    )
+    assert store.purge_irrelevant_documents([]) == 0
+    assert store._conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1
+
+
 def test_drop_all_removes_tables() -> None:
     store = SQLiteStore(":memory:")
     store.insert_entity("特来电", "特来电", [], "t1")

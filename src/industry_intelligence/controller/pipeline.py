@@ -26,6 +26,10 @@ from industry_intelligence.reporting.engine import ReportEngine, ReportEngineRes
 from industry_intelligence.sources.adapter import SourceAdapter
 from industry_intelligence.storage.jsonl_store import JSONLStore
 from industry_intelligence.storage.sqlite_store import SQLiteStore
+from industry_intelligence.utils.relevance import (
+    build_relevance_terms,
+    is_doc_relevant,
+)
 
 
 @dataclass
@@ -36,6 +40,8 @@ class RunResult:
     status: str = "running"
     documents_collected: int = 0
     documents_deduped: int = 0
+    # 因不相关被门控/清理的文档数（采集层相关性过滤）
+    documents_filtered: int = 0
     events_created: int = 0
     observations_extracted: int = 0
     analysis_results: list[AnalysisResult] = field(default_factory=list)
@@ -254,13 +260,24 @@ class Pipeline:
             )
 
     def _collect(self, result: RunResult) -> list[NormalizedDocument]:
-        """执行搜索计划并采集去重，写入 JSONL。"""
+        """执行搜索计划并采集去重，写入 JSONL。
+
+        相关性门控：websearch 等非 RSS 来源抓取的文档须命中主题关键词/企业名，
+        否则视为垃圾丢弃（避免无关内容污染事件与摘要）；历史遗留的无关
+        websearch 文档在采集前先清理。
+        """
         docs: list[NormalizedDocument] = []
+        terms = build_relevance_terms(self._topic)
         try:
             plans = self._planner.generate_plans(self._topic, self._task)
         except Exception as exc:  # noqa: BLE001
             result.errors.append(f"planning: {exc}")
             return docs
+        # 清理历史遗留的无关 websearch 文档（垃圾不进查询窗口）
+        try:
+            result.documents_filtered += self._sqlite.purge_irrelevant_documents(terms)
+        except Exception as exc:  # noqa: BLE001 — 清理失败不中断采集
+            result.errors.append(f"purge irrelevant: {exc}")
         for item in self._adapter.discover(plans, context={}):
             try:
                 raw = self._adapter.fetch(item)
@@ -268,6 +285,9 @@ class Pipeline:
                 doc = self._adapter.normalize(parsed, topic_id=self._topic.id)
             except Exception as exc:  # noqa: BLE001 — 单条失败不中断整体
                 result.errors.append(f"skip {item.url}: {exc}")
+                continue
+            if not is_doc_relevant(doc, terms):
+                result.documents_filtered += 1
                 continue
             if self._dedup.register(doc):
                 self._jsonl.append(doc)

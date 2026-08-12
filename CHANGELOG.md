@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## v0.7.0a3 — 2026-08-12
+
+### 推送内容相关性门控 + 企业节补足 5 条
+
+- **采集层相关性门控**：`utils/relevance.py` — 由 Topic 配置关键词（core/products/market/technology，不含 events）与企业名/别名构建主题信号集；`is_doc_relevant()` 统一判定：websearch 等非 RSS 来源的文档须命中信号才进入事件/摘要（避免美国 runner Bing 返回的无关内容污染推送，如 Brisbane 旅游页），RSS 已由 feed 按查询词预过滤、`site:` 官方域结果按构造可信均直接放行。**采集两个入口同规则**：Pipeline `_collect`（--phase2+）与纯采集 CLI `_cmd_run`（--topic --task --output）都应用门控（实跑发现 `_cmd_run` 此前绕过门控，已修复并打印 filtered 计数）。
+- **历史垃圾清理**：`SQLiteStore.purge_irrelevant_documents()` — 每次采集前清理库中不命中的 websearch 文档（按表依赖顺序删除，不触发外键 CHECK），并计入 `RunResult.documents_filtered`。
+- **企业竞争变化 5 条**：`reporting/formatters/digest.py` 三节重写 —— 跟踪企业（Topic 配置的 5 家）全部输出，有动态的列主张/事件，无动态的以"本期暂无动态"补足，保证稳定 5 条；事件中出现但未跟踪的企业也纳入动态。
+- **测试**：新增 `test_relevance.py`（信号构建/命中规则）、`test_pipeline_gate.py`（RSS/官方域放行 + websearch 门控 + 历史清理）、SQLite purge 测试、摘要企业节 5 条/主张优先/未跟踪实体测试；349 全过，ruff / mypy 干净。
+
 ## v0.7.0a2 — 2026-08-12
 
 ### 微信摘要结构调整（推送适配）

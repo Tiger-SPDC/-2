@@ -216,6 +216,10 @@ def _cmd_run(
     )
     from industry_intelligence.normalization import Deduplicator
     from industry_intelligence.storage import JSONLStore
+    from industry_intelligence.utils.relevance import (
+        build_relevance_terms,
+        is_doc_relevant,
+    )
 
     try:
         sys_cfg = load_system_config(CONFIG_DIR / "system.yaml")
@@ -242,9 +246,11 @@ def _cmd_run(
 
     store = JSONLStore(output)
     dedup = Deduplicator()
+    terms = build_relevance_terms(topic)
 
     collected = 0
     duplicates = 0
+    filtered = 0
     for item in adapter.discover(plans, context={}):
         try:
             raw = adapter.fetch(item)
@@ -252,6 +258,10 @@ def _cmd_run(
             doc = adapter.normalize(parsed, topic_id=topic.id)
         except Exception as exc:  # noqa: BLE001 — 单条失败不中断整体
             print(f"  ! skipped {item.url}: {exc}")
+            continue
+        # 相关性门控：与 Pipeline._collect 同规则（RSS/官方站点放行，其余须命中信号）
+        if not is_doc_relevant(doc, terms):
+            filtered += 1
             continue
         if dedup.register(doc):
             store.append(doc)
@@ -261,7 +271,7 @@ def _cmd_run(
 
     print(
         f"Collected {collected} new document(s), "
-        f"{duplicates} duplicate(s) skipped."
+        f"{duplicates} duplicate(s), {filtered} filtered (irrelevant)."
     )
     print(f"Output: {store.path}")
     return 0

@@ -12,6 +12,7 @@
 - **`.gitignore`**：补充 `*.sqlite-shm` / `*.sqlite-wal`（SQLite WAL 瞬态边车不提交）。
 - **测试**：新增 4 个（`_build_messages` 无模板边界、`_generate_structured_safe` 模板合并、ReviewAgent 模板合并、文档重采集保留证据链接回归），同步模型与 `max_tokens` 断言；294 个测试全过，ruff / mypy 干净。
 - **真实验证**：`charging_cn_weekly` 全链路 run 产出 22→24 条 Claim（100% 证据覆盖率）、4 分析师全部成功、Review 19 pass / 0 reject / 3 downgrade；0 观测为数据依赖（主题仅 5 家重点企业，本周大部分文档命中蔚来/比亚迪等未配置企业）。`persist: CHECK constraint failed` 错误已通过 UPSERT 修复后实跑确认消除；Review 偶发空响应（推理模型间歇性）在 3 次重试 + 退避后仍失败时按设计优雅降级（报告照常生成，该轮 Claim 标记为未审查）。
+- **GitHub Actions 验收**：`grchuizi/-2` 仓库绑定 + Secrets（DEEPSEEK_API_KEY / SERVERCHAN_KEY，API 加密写入）+ push 后 Manual Run `fb94fbed3db94b29 [success]` — 50 doc / 25 Claim / 100% 证据覆盖 / Review 25 pass·0 reject·0 downgrade / **notified**（微信摘要推送成功）；数据与报告 auto-commit 回仓库，Artifact 上传；`scheduled_dispatcher` / `validation` / `maintenance` 工作流已随 main 生效（每日 08:17 北京时自动运行）。
 
 ## v0.6.0a1 — 2026-08-11
 

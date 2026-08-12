@@ -3,7 +3,7 @@
 - **Project:** Industry Intelligence Agent
 - **Version:** v0.6.1a1
 - **Date:** 2026-08-11
-- **Current phase:** Phase 5（GitHub 全自动运行已实现，本地真实端到端验收完成——全链路 [success]，待 GitHub 远端验收交接）
+- **Current phase:** Phase 5（GitHub 全自动运行已实现，本地 + GitHub Actions 真实端到端验收全部通过——含微信推送）
 - **Code implementation:** 配置加载 / 搜索计划 / RSS·HTML 采集 / 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ Phase 4（Review Agent 7 项检查 + Markdown·Excel·微信摘要报告 + 数据质量章节 + Server酱通知）/ Phase 5（通用调度器 + 4 个 GitHub Actions 工作流 + auto-commit + Artifact + 失败通知 + retry）/ CLI
 - **Repository safety boundary:** Required
 - **Preferred local Python:** 3.12 (3.11+ acceptable)
@@ -69,9 +69,16 @@
 - [x] v0.6.1a1：DeepSeek 集成修复（json_schema→json_object、max_tokens 4096→8192 应对推理 token 饥饿、分析师/审查模板注入修复、多次重试 + 退避；294 测试 + ruff/mypy 干净）
 - [x] 真实端到端验收（本地，DEEPSEEK_API_KEY）：`charging_cn_weekly` 全链路 run `9e6c7ad9041d4757 [success]` — 50 doc / 50 event / 23 Claim / 100% 证据覆盖率 / Review 18 pass·0 reject·5 downgrade，无错误；`persist: CHECK constraint failed`（INSERT OR REPLACE 触发外键 SET NULL）已修复实跑确认
 
+## 已完成（GitHub 验收）
+
+- [x] GitHub 远端仓库绑定：`origin` = `https://github.com/grchuizi/-2.git`，`main` 已推送
+- [x] Secrets 配置：`DEEPSEEK_API_KEY` / `SERVERCHAN_KEY`（经 GitHub API + libsodium 加密设置，未落库、未提交）
+- [x] GitHub Actions Manual Run 验收：Run `fb94fbed3db94b29 [success]` — 50 doc / 25 Claim / 100% 证据覆盖 / Review 25 pass·0 reject·0 downgrade / **notified**（微信摘要推送成功）；数据与报告 auto-commit 回仓库，Artifact 已上传
+
 ## 尚未开始
 
-- [ ] GitHub 远端仓库绑定（验收前置：`git remote add` + Secrets 配置）
-- [ ] GitHub Actions 远端验收（push 代码 + Secrets DEEPSEEK_API_KEY/SERVERCHAN_KEY + Manual Run 触发，确认微信摘要收到；SERVERCHAN_KEY 尚未提供，`charging_cn_weekly` 当前 `notify: false`）
+- [ ] 真实搜索 API 接入（搜索源仍为 RSS；`search.sources` 已注册 google_news / baidu_news 待启用）
+- [ ] 采集规模扩大与运行调度优化
+- [ ] 微信推送实收确认（Server酱返回 notified；请确认手机已收到摘要）
 - [ ] 真实搜索 API 接入（搜索源仍为 RSS）
 - [ ] 采集规模扩大与运行调度优化

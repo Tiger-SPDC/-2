@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from industry_intelligence.collectors import SearchPlanner
-from industry_intelligence.config.models import SystemConfig
+from industry_intelligence.config.models import StorageConfig, SystemConfig
 from industry_intelligence.controller import Pipeline
 from industry_intelligence.entities import EntityResolver
 from industry_intelligence.intelligence import EventClassifier, EventClusterer
@@ -78,7 +78,9 @@ def _build_pipeline(tmp_path, rss_fixture, sample_topic, sample_task, provider):
     pipeline = Pipeline(
         topic=sample_topic,
         task=sample_task,
-        system_config=SystemConfig(),
+        system_config=SystemConfig(
+            storage=StorageConfig(push_log_path=str(tmp_path / "push_log.jsonl"))
+        ),
         adapter=adapter,
         jsonl_store=jsonl,
         sqlite_store=sqlite,
@@ -160,7 +162,9 @@ def test_empty_collection(tmp_path, sample_topic, sample_task) -> None:
     pipeline = Pipeline(
         topic=sample_topic,
         task=sample_task,
-        system_config=SystemConfig(),
+        system_config=SystemConfig(
+            storage=StorageConfig(push_log_path=str(tmp_path / "push_log.jsonl"))
+        ),
         adapter=adapter,
         jsonl_store=jsonl,
         sqlite_store=sqlite,

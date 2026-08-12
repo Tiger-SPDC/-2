@@ -16,6 +16,8 @@ storage:
   persistent_format: jsonl
   save_raw_html: false
   save_text_snapshot: true
+  # 推送内容日志：每次微信推送尝试追加一条 JSONL 记录（data/ 随 GitHub 运行提交回仓库）
+  push_log_path: data/push_log.jsonl
 
 quality:
   require_evidence_for_key_claim: true

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## v0.7.0a4 — 2026-08-12
+
+### 推送内容日志
+
+- **推送内容落日志**：`notification/push_log.py` 的 `append_push_log()` — 每次微信推送尝试（无论成败）向 `data/push_log.jsonl` 追加一条 JSONL 记录：时间戳 / run_id / topic_id / 通道 / 标题 / 是否成功 / 重试次数 / 错误 / **推送正文全文**。供事后追溯每次推送了什么内容、结果如何。
+- **路径可配**：`StorageConfig.push_log_path`（`config/system.yaml -> storage.push_log_path`，默认 `data/push_log.jsonl`，与 `data/collection.jsonl` 一样随 GitHub 运行提交回仓库，本地与 GitHub 推送历史都可见）。
+- **尽力而为**：日志写失败仅追加到 errors、不影响推送与报告；Pipeline `_run_notification` 在发送后统一落日志（成功与失败都记录）。
+- **测试**：新增 `test_push_log.py`（建目录 / 累积追加 / 失败返回 False）+ Pipeline `_run_notification` 落日志集成测试（成功与失败各一条）+ 配置解析测试；355 全过，ruff / mypy 干净。
+
 ## v0.7.0a3 — 2026-08-12
 
 ### 推送内容相关性门控 + 企业节补足 5 条

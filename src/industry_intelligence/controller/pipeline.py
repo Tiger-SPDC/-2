@@ -22,6 +22,7 @@ from industry_intelligence.metrics import ObservationExtractor
 from industry_intelligence.metrics.models import Observation
 from industry_intelligence.normalization import Deduplicator
 from industry_intelligence.notification.adapter import NotificationAdapter
+from industry_intelligence.notification.push_log import append_push_log
 from industry_intelligence.reporting.engine import ReportEngine, ReportEngineResult
 from industry_intelligence.sources.adapter import SourceAdapter
 from industry_intelligence.storage.jsonl_store import JSONLStore
@@ -241,15 +242,13 @@ class Pipeline:
         result.errors.extend(report.errors)
 
     def _run_notification(self, result: RunResult) -> None:
-        """执行 Phase 4 通知推送：发送微信摘要（尽力而为）。"""
+        """执行 Phase 4 通知推送：发送微信摘要（尽力而为），并落推送内容日志。"""
         adapter = self._notification_adapter
         if adapter is None or not result.digest_text:
             return
+        title = f"产业竞争情报周报 {result.run_id}"
         try:
-            notification = adapter.send(
-                f"产业竞争情报周报 {result.run_id}",
-                result.digest_text,
-            )
+            notification = adapter.send(title, result.digest_text)
         except Exception as exc:  # noqa: BLE001 — 推送失败不影响报告
             result.errors.append(f"notification: {exc}")
             return
@@ -258,6 +257,24 @@ class Pipeline:
             result.errors.append(
                 f"notification: {notification.error or 'unknown'}"
             )
+        # 推送内容落日志：无论成败都记录本次推送尝试，供事后追溯
+        try:
+            append_push_log(
+                self._system.storage.push_log_path,
+                {
+                    "timestamp": _now_iso(),
+                    "run_id": result.run_id,
+                    "topic_id": self._topic.id,
+                    "channel": adapter.channel_name,
+                    "title": title,
+                    "success": notification.success,
+                    "retry_count": notification.retry_count,
+                    "error": notification.error,
+                    "content": result.digest_text,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 — 日志失败不影响推送
+            result.errors.append(f"push log: {exc}")
 
     def _collect(self, result: RunResult) -> list[NormalizedDocument]:
         """执行搜索计划并采集去重，写入 JSONL。

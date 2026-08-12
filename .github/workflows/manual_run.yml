@@ -96,7 +96,7 @@ jobs:
         run: |
           git config user.name "industry-intelligence-agent[bot]"
           git config user.email "agent[bot]@users.noreply.github.com"
-          git add data/state/industry_intelligence.sqlite data/collection.jsonl output/reports 2>/dev/null || true
+          git add data/state/industry_intelligence.sqlite data/collection.jsonl data/push_log.jsonl output/reports 2>/dev/null || true
           if [ -f data/state/scheduler_state.json ]; then git add data/state/scheduler_state.json; fi
           if git diff --cached --quiet; then
             echo "No data changes to commit"

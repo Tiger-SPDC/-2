@@ -16,7 +16,7 @@ from industry_intelligence.analysis.models import (
 )
 from industry_intelligence.analysis.review import ReviewAgent
 from industry_intelligence.collectors import SearchPlanner
-from industry_intelligence.config.models import SystemConfig
+from industry_intelligence.config.models import StorageConfig, SystemConfig
 from industry_intelligence.controller import Pipeline
 from industry_intelligence.entities import EntityResolver
 from industry_intelligence.intelligence import EventClassifier, EventClusterer
@@ -147,7 +147,9 @@ def _build_pipeline(tmp_path, rss_fixture, sample_topic, sample_task, provider,
     pipeline = Pipeline(
         topic=sample_topic,
         task=sample_task,
-        system_config=SystemConfig(),
+        system_config=SystemConfig(
+            storage=StorageConfig(push_log_path=str(tmp_path / "push_log.jsonl"))
+        ),
         adapter=adapter,
         jsonl_store=jsonl,
         sqlite_store=sqlite,

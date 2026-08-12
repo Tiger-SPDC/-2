@@ -26,6 +26,8 @@ class StorageConfig:
     persistent_format: str = "jsonl"
     save_raw_html: bool = False
     save_text_snapshot: bool = True
+    # 推送内容日志（每次微信推送尝试追加一条 JSONL 记录）
+    push_log_path: str = "data/push_log.jsonl"
 
 
 @dataclass

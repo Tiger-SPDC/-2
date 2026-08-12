@@ -14,6 +14,7 @@ from industry_intelligence.config.loader import (
     load_websearch_config,
     resolve_task,
 )
+from industry_intelligence.config.models import StorageConfig
 
 
 def test_load_valid_topic(fixtures_dir: Path) -> None:
@@ -92,6 +93,12 @@ def test_load_system_config(project_root: Path) -> None:
     assert cfg.default_language == "zh-CN"
     assert cfg.collection.max_concurrency == 5
     assert cfg.storage.persistent_format == "jsonl"
+    assert cfg.storage.push_log_path == "data/push_log.jsonl"
+
+
+def test_storage_config_default_push_log_path() -> None:
+    # 未配置 push_log_path 时回退默认路径（loader 中 "" or 默认）
+    assert StorageConfig().push_log_path == "data/push_log.jsonl"
 
 
 def test_load_llm_config_section(project_root: Path) -> None:

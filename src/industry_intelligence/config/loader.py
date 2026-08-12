@@ -241,6 +241,10 @@ def _parse_system_config(data: dict[str, object], path: str) -> SystemConfig:
             save_text_snapshot=_as_bool(
                 storage.get("save_text_snapshot"), "storage.save_text_snapshot", path
             ),
+            push_log_path=(
+                _as_str(storage.get("push_log_path"), "storage.push_log_path", path)
+                or "data/push_log.jsonl"
+            ),
         ),
         quality=QualityConfig(
             require_evidence_for_key_claim=_as_bool(

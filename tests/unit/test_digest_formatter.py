@@ -1,4 +1,4 @@
-"""DigestFormatter 单元测试：6 节结构、字数控制、质量等级（全离线）。"""
+"""DigestFormatter 单元测试：3 节结构、字数上限、质量等级（全离线）。"""
 
 from __future__ import annotations
 
@@ -39,14 +39,18 @@ def _bundle(**overrides) -> ReportDataBundle:
     return ReportDataBundle(**kwargs)
 
 
-def test_render_contains_six_sections() -> None:
+def test_render_contains_three_sections() -> None:
     text = DigestFormatter().render(_bundle())
     for title in (
-        "一、本周一句话判断", "二、最重要的 5 件事",
-        "三、企业竞争变化", "四、关键数据",
-        "五、风险/机会", "六、需要继续跟踪",
+        "一、本周一句话判断",
+        "二、最重要的 5 件事",
+        "三、企业竞争变化",
     ):
         assert title in text
+    # 冗余节已按需求移除
+    assert "四、关键数据" not in text
+    assert "五、风险/机会" not in text
+    assert "六、需要继续跟踪" not in text
 
 
 def test_quality_level_high() -> None:
@@ -73,6 +77,11 @@ def test_long_text_truncated() -> None:
     long_claim = {"claim_id": "c1", "claim_text": "长" * 500,
                   "claim_type": "fact", "confidence": 0.9,
                   "entity_id": "特来电", "analysis_type": "technology"}
-    text = DigestFormatter().render(_bundle(claims=[long_claim]))
+    text = DigestFormatter().render(
+        _bundle(claims=[long_claim]), report_path="output/r1/report.md"
+    )
     assert "已截断" in text
-    assert len(text) <= _MAX_CHARS + 10  # 截断标记少量溢出可接受
+    # 总长（含标点）严格不超过上限
+    assert len(text) <= _MAX_CHARS
+    # 超长时只截正文，报告链接必须保留
+    assert "完整报告：output/r1/report.md" in text

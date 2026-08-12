@@ -1,9 +1,9 @@
 # PROJECT_STATUS
 
 - **Project:** Industry Intelligence Agent
-- **Version:** v0.7.0a1
+- **Version:** v0.7.0a2
 - **Date:** 2026-08-12
-- **Current phase:** Phase 5（GitHub 全自动运行已实现，本地 + GitHub Actions 真实端到端验收全部通过——含微信推送；v0.7.0a1 新增真实网页搜索——Bing SERP 爬取 + 官方站点 site: 限定）
+- **Current phase:** Phase 5（GitHub 全自动运行已实现，本地 + GitHub Actions 真实端到端验收全部通过——含微信推送；v0.7.0a1 新增真实网页搜索——Bing SERP 爬取 + 官方站点 site: 限定；v0.7.0a2 微信摘要精简为 3 节 + ≤600 字）
 - **Code implementation:** 配置加载 / 搜索计划（含官方站点查询族）/ RSS·HTML·WebSearch·Composite 采集（Bing SERP 爬取 + 权威官方域名 site: 限定，无 API Key）/ 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ Phase 4（Review Agent 7 项检查 + Markdown·Excel·微信摘要报告 + 数据质量章节 + Server酱通知）/ Phase 5（通用调度器 + 4 个 GitHub Actions 工作流 + auto-commit + Artifact + 失败通知 + retry）/ CLI
 - **Repository safety boundary:** Required
 - **Preferred local Python:** 3.12 (3.11+ acceptable)
@@ -68,6 +68,7 @@
 - [x] Phase 5：测试套件（+24 测试，全离线 mock）
 - [x] v0.6.1a1：DeepSeek 集成修复（json_schema→json_object、max_tokens 4096→8192 应对推理 token 饥饿、分析师/审查模板注入修复、多次重试 + 退避；294 测试 + ruff/mypy 干净）
 - [x] v0.7.0a1：真实网页搜索（WebSearchAdapter，Bing SERP 爬取无 API Key）+ CompositeAdapter（RSS 基线并行、失败降级）+ 官方站点 site: 限定（TopicProfile.official_domains，检索哪些官网由行业关键词决定）+ QueryPlan 查询族标记；extra 追溯透传（official_domain/family 随文档持久化到 JSONL）；消费 polite_delay_seconds/retries；328 测试 + ruff/mypy 干净
+- [x] v0.7.0a2：微信摘要精简为 3 节（一句话判断 / 最重要的 5 件事 / 企业竞争变化）+ 数据质量 + 完整报告，总字数 ≤600（含标点）；移除关键数据/风险机会/继续跟踪三节；超长只截正文、报告链接始终保留；328 测试 + ruff/mypy 干净
 - [x] 真实端到端验收（本地，DEEPSEEK_API_KEY）：`charging_cn_weekly` 全链路 run `9e6c7ad9041d4757 [success]` — 50 doc / 50 event / 23 Claim / 100% 证据覆盖率 / Review 18 pass·0 reject·5 downgrade，无错误；`persist: CHECK constraint failed`（INSERT OR REPLACE 触发外键 SET NULL）已修复实跑确认
 
 ## 已完成（GitHub 验收）

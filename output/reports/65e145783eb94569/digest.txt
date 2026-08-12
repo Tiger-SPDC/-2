@@ -1,0 +1,17 @@
+【产业竞争情报周报 | charging_pile】
+周期：2026-08-05T03:22:27+00:00 ~ 2026-08-12T03:22:27+00:00
+
+一、本周一句话判断
+在2026-08-05T03:17:09+00:00至2026-08-12T03:17:09+00:00分析窗口内，技术关键词（大功率快充、有序充电、车网互动、V2G）在公开文档中的命中文档数为0。
+
+二、最重要的 5 件事
+1. Brisbane: Story Bridge Adventure Climb
+2. Story Bridge - Wikipedia
+3. Brisbane’s Story Bridge Climb - My Queensland
+4. A Guide to Story Bridge Adventure Climb | Crystalbrook
+5. Story Bridge adventure climb - Australia Pathways
+
+三、企业竞争变化
+- 星星充电：[推断] 星星充电通过公开访谈强调运营价值，可能意在凸显其运营能力或战略重心转向运营服务。
+数据质量：High
+完整报告：/home/runner/work/-2/-2/output/reports/65e145783eb94569/report.md

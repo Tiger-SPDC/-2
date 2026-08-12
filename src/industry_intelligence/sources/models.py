@@ -30,6 +30,8 @@ class QueryBudget:
     max_queries: int = 50
     max_per_entity: int = 3
     max_per_category: int = 5
+    # 热点族：每条热点话题短语可生成的查询组合上限
+    max_hot: int = 10
 
 
 @dataclass

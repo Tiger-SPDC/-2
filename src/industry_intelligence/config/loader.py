@@ -230,6 +230,16 @@ def _parse_system_config(data: dict[str, object], path: str) -> SystemConfig:
                 "collection.polite_delay_seconds",
                 path,
             ),
+            hot_topics_enabled=_as_bool(
+                collection.get("hot_topics_enabled"),
+                "collection.hot_topics_enabled",
+                path,
+            ),
+            hot_topics_max=_as_int(
+                collection.get("hot_topics_max"),
+                "collection.hot_topics_max",
+                path,
+            ),
         ),
         storage=StorageConfig(
             persistent_format=_as_str(

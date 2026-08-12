@@ -70,7 +70,19 @@ class _StubPlanner:
     def __init__(self, plans: list[QueryPlan]) -> None:
         self._plans = plans
 
-    def generate_plans(self, topic, task) -> list[QueryPlan]:  # noqa: ANN001
+    def generate_plans(self, topic, task, hot_topics=None) -> list[QueryPlan]:  # noqa: ANN001
+        return self._plans
+
+
+class _RecordingPlanner(_StubPlanner):
+    """记录每次收到的 hot_topics，便于断言 Pipeline 传参。"""
+
+    def __init__(self, plans: list[QueryPlan]) -> None:
+        super().__init__(plans)
+        self.calls: list[list[str]] = []
+
+    def generate_plans(self, topic, task, hot_topics=None) -> list[QueryPlan]:  # noqa: ANN001
+        self.calls.append(list(hot_topics or []))
         return self._plans
 
 
@@ -184,6 +196,54 @@ def test_terms_from_topic(sample_topic) -> None:  # noqa: ANN001
     assert "充电桩" in terms
     assert "充电基础设施" in terms
     assert "特来电新能源" in terms
+
+
+def test_collect_passes_hot_topics_to_planner_and_gate(
+    tmp_path, sample_topic, sample_task
+) -> None:  # noqa: ANN001
+    """热点短语传入 planner，且并入门控信号词——仅命中热点短语的文档放行。"""
+    sqlite = SQLiteStore(":memory:")
+    # 文档只命中热点短语"800V 超充平台"（不在 sample_topic 的 config keywords 里）
+    adapter = _StubAdapter([
+        _item("websearch:bing", "h1", "800V 超充平台落地")
+    ])
+    planner = _RecordingPlanner(
+        [QueryPlan(query_id="q1", query_string="800V 超充平台 中国")]
+    )
+    pipeline = _make_pipeline(
+        tmp_path, adapter, planner, sqlite, sample_topic, sample_task
+    )
+    pipeline._hot_topics = ["800V 超充平台"]
+
+    result = RunResult(run_id="test")
+    docs = pipeline._collect(result)
+
+    assert planner.calls == [["800V 超充平台"]]
+    assert result.hot_topics == ["800V 超充平台"]
+    assert result.documents_filtered == 0
+    assert {d.document_id for d in docs} == {"h1"}
+
+
+def test_collect_without_hot_topics_filters_hot_only_doc(
+    tmp_path, sample_topic, sample_task
+) -> None:  # noqa: ANN001
+    """未注入热点时，仅命中热点短语（不在 config 信号里）的 websearch 文档被门控丢弃。"""
+    sqlite = SQLiteStore(":memory:")
+    adapter = _StubAdapter([
+        _item("websearch:bing", "h1", "800V 超充平台落地")
+    ])
+    planner = _RecordingPlanner([])
+    pipeline = _make_pipeline(
+        tmp_path, adapter, planner, sqlite, sample_topic, sample_task
+    )
+
+    result = RunResult(run_id="test")
+    docs = pipeline._collect(result)
+
+    assert planner.calls == [[]]
+    assert result.hot_topics == []
+    assert result.documents_filtered == 1
+    assert docs == []
 
 
 class _StubNotifier:

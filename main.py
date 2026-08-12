@@ -198,6 +198,45 @@ def _apply_task_overrides(
         task.output.notify = notify == "true"
 
 
+def _discover_hot_topics(
+    sys_cfg: Any,
+    topic: Any,
+    focus: list[str] | None = None,
+    provider: Any = None,
+) -> list[str]:
+    """用 LLM 基于大方向词发现当前行业热点话题；不可用时返回空列表。
+
+    hot_topics_enabled 关闭、无 API key / provider 构造失败、LLM 失败均返回
+    空列表——调用方据此回退固定三族查询（采集不受影响）。
+    行业数据全部来自 Topic 配置，仅注入 provider 与模板，无行业硬编码。
+    """
+    if not sys_cfg.collection.hot_topics_enabled:
+        return []
+    from industry_intelligence.intelligence import HotTopicGenerator
+    from industry_intelligence.llm import DeepSeekProvider, LLMError, load_prompt
+
+    if provider is None:
+        try:
+            provider = DeepSeekProvider(sys_cfg.llm)
+        except LLMError:
+            return []
+    try:
+        hot = HotTopicGenerator(
+            provider=provider,
+            prompt_template=load_prompt("hot_topics", CONFIG_DIR),
+        ).generate(
+            topic,
+            focus=focus,
+            max_topics=sys_cfg.collection.hot_topics_max,
+        )
+    except Exception as exc:  # noqa: BLE001 — 热点发现失败不中断采集
+        print(f"  ! hot topics discovery failed: {exc}")
+        return []
+    if hot:
+        print(f"Hot topics ({len(hot)}): {'、'.join(hot)}")
+    return hot
+
+
 def _cmd_run(
     topic_id: str, task_id: str, output: str,
     *,
@@ -234,8 +273,15 @@ def _cmd_run(
         focus=focus, depth=depth, notify=notify,
     )
 
-    plans = SearchPlanner().generate_plans(topic, task)
-    print(f"Planner: {len(plans)} query plan(s) for topic '{topic.id}'")
+    # 动态热点：大方向词 → LLM 发现当前行业热点，热点可用时优先按热点检索
+    hot = _discover_hot_topics(
+        sys_cfg, topic, SearchPlanner._effective_focus(topic, task)
+    )
+    plans = SearchPlanner().generate_plans(topic, task, hot)
+    family_note = (
+        f" (hot family: {len(hot)} topics)" if hot else " (fallback: fixed families)"
+    )
+    print(f"Planner: {len(plans)} query plan(s) for topic '{topic.id}'{family_note}")
 
     adapter = _build_adapter(sys_cfg)
     if not adapter.health_check():
@@ -246,7 +292,7 @@ def _cmd_run(
 
     store = JSONLStore(output)
     dedup = Deduplicator()
-    terms = build_relevance_terms(topic)
+    terms = build_relevance_terms(topic, extra=hot)
 
     collected = 0
     duplicates = 0
@@ -325,6 +371,14 @@ def _cmd_run_phase2(
     except LLMError as exc:
         print(f"LLM config error: {exc}")
         return 1
+
+    # 动态热点：大方向词 → LLM 发现当前行业热点，热点可用时优先按热点检索
+    hot = _discover_hot_topics(
+        sys_cfg,
+        topic,
+        SearchPlanner._effective_focus(topic, task),
+        provider=provider,
+    )
 
     adapter = _build_adapter(sys_cfg)
     if not adapter.health_check():
@@ -418,6 +472,7 @@ def _cmd_run_phase2(
         review_agent=review_agent,
         report_engine=report_engine,
         notification_adapter=notification_adapter,
+        hot_topics=hot,
     )
 
     result = pipeline.run()
@@ -428,6 +483,8 @@ def _cmd_run_phase2(
         f"{result.events_created} event(s), "
         f"{result.observations_extracted} observation(s)"
     )
+    if result.hot_topics:
+        summary += f", hot topics {len(result.hot_topics)}"
     if phase3:
         summary += (
             f", {result.analysis_claims} claim(s), "

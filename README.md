@@ -126,13 +126,18 @@ Phase 0 阶段禁止实现：真实爬虫、搜索/新闻/RSS 抓取、SQLite �
 
 禁止操作：修改项目目录外文件、全局 pip 安装、修改 Windows PATH/注册表/系统环境变量、创建计划任务/系统服务、复用日常浏览器 Profile、在仓库中写入任何 API Key/Token。
 
-## 13. 数据源与网页搜索（v0.7.0a1 起）
+## 13. 数据源与网页搜索（v0.7.0a1 起；v0.7.0a5 起热点优先）
 
-采集采用组合适配器（RSS 基线 + 网页搜索并行，websearch 禁用/失败时自动回退 RSS-only）：
+采集采用组合适配器（RSS 基线 + 网页搜索并行，websearch 禁用/失败时自动回退 RSS-only）。**v0.7.0a5 起，关键词只是大方向锚点**：检索优先用 LLM 动态发现的当前行业热点，固定三族查询降级为兜底。
 
 - **RSS**：`config/sources/search.yaml -> rss_feeds`。
 - **网页搜索（无 API Key、无账号）**：`WebSearchAdapter` 直接抓取 Bing 搜索结果页（`config/sources/search.yaml -> websearch.engines`），解析结果块生成采集条目；查询间礼貌限速（`delay_seconds`，缺省用 `collection.polite_delay_seconds`），失败退避重试（`collection.retries`）。
-- **权威官方站点检索**：每个行业在 `config/topics/<topic>.yaml` 的 `official_domains` 声明其权威官网域名（如 `gov.cn` / `ndrc.gov.cn` / `miit.gov.cn` / `nea.gov.cn`），Planner 自动生成 `"核心词 site:域名"` 查询族；命中官方站点的文档在 `extra.official_domain` 标记，供 JSONL/SQLite 追溯。检索哪些官网由该行业关键词决定，核心代码零行业硬编码。
+- **动态热点发现（v0.7.0a5）**：`HotTopicGenerator` 用 DeepSeek 基于大方向词（core，或 `--focus` 覆盖）生成当前行业热点话题短语；`SearchPlanner` 热点可用时优先生成 `family="hot"` 查询（热点短语 × 地区），热点为空/失败时回退固定三族。开关与上限：`config/system.yaml -> collection.hot_topics_enabled` / `hot_topics_max`。
+- **固定三族查询（兜底）**：
+  - **企业族**：核心词 × 跟踪企业 × 地区；
+  - **事件族**：核心词 × 事件词 × 地区；
+  - **权威官方站点检索**：每个行业在 `config/topics/<topic>.yaml` 的 `official_domains` 声明其权威官网域名（如 `gov.cn` / `ndrc.gov.cn` / `miit.gov.cn` / `nea.gov.cn`），Planner 自动生成 `"核心词 site:域名"` 查询族；命中官方站点的文档在 `extra.official_domain` 标记，供 JSONL/SQLite 追溯。检索哪些官网由该行业关键词决定，核心代码零行业硬编码。
+- **热点与门控联动**：当次热点短语自动并入相关性门控信号词（`build_relevance_terms(extra=…)`），保证按热点检索到的文档不被误杀；热点为空时回退行为与 v0.7.0a3 完全一致。
 - **边界**：只访问公开 HTML 页面，礼貌限速，不绕过登录/验证码/付费墙。后续版本（V0.8+）按需接入个别官网站内自建搜索。
 
 ## 12. Roadmap

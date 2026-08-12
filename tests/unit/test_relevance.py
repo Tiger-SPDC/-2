@@ -57,6 +57,15 @@ def test_build_terms_skips_generic_event_words() -> None:
     assert "政策" not in terms
 
 
+def test_build_terms_extra_merged() -> None:
+    # 热点短语并入信号词（去重/小写），保证按热点检索的文档不被门控误杀
+    terms = build_relevance_terms(_topic(), extra=["液冷超充", "800V 超充平台"])
+    assert "800v 超充平台" in terms
+    assert terms.count("液冷超充") == 1
+    # 默认 extra 为空，行为不变
+    assert build_relevance_terms(_topic()) == build_relevance_terms(_topic(), extra=[])
+
+
 def test_is_relevant_matches_title() -> None:
     assert is_relevant("特来电推出液冷超充新品", "", ["充电桩", "特来电"])
 

@@ -7,15 +7,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from industry_intelligence.config.models import TopicProfile
 from industry_intelligence.core.document import NormalizedDocument
 
 
-def build_relevance_terms(topic: TopicProfile) -> list[str]:
+def build_relevance_terms(
+    topic: TopicProfile, extra: Iterable[str] = ()
+) -> list[str]:
     """从主题配置构建相关性信号词（去重、去空、小写）。
 
     取 core / products / market / technology 四组关键词 + 跟踪企业名与别名。
     events 关键词（如"政策"）过于通用、exclude 为负向词，均不入信号集。
+    extra 用于并入当次运行的动态信号词（如 LLM 发现的热点话题），保证按
+    热点检索到的文档不被门控误杀。
     """
     terms: list[str] = []
     terms.extend(topic.keywords.core)
@@ -25,6 +31,7 @@ def build_relevance_terms(topic: TopicProfile) -> list[str]:
     for company in topic.entities.companies:
         terms.append(company.canonical_name)
         terms.extend(company.aliases)
+    terms.extend(extra)
     return sorted({t.strip().lower() for t in terms if t and t.strip()})
 
 

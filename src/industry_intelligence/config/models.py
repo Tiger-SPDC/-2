@@ -17,6 +17,9 @@ class CollectionConfig:
     retries: int = 2
     user_agent: str = "industry-intelligence-agent"
     polite_delay_seconds: float = 1.5
+    # 动态热点发现：用 LLM 基于大方向词生成当前行业热点话题，据此优先检索
+    hot_topics_enabled: bool = True
+    hot_topics_max: int = 10
 
 
 @dataclass

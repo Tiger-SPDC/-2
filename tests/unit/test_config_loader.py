@@ -14,7 +14,7 @@ from industry_intelligence.config.loader import (
     load_websearch_config,
     resolve_task,
 )
-from industry_intelligence.config.models import StorageConfig
+from industry_intelligence.config.models import CollectionConfig, StorageConfig
 
 
 def test_load_valid_topic(fixtures_dir: Path) -> None:
@@ -92,8 +92,16 @@ def test_load_system_config(project_root: Path) -> None:
     assert cfg.timezone == "Asia/Shanghai"
     assert cfg.default_language == "zh-CN"
     assert cfg.collection.max_concurrency == 5
+    assert cfg.collection.hot_topics_enabled is True
+    assert cfg.collection.hot_topics_max == 10
     assert cfg.storage.persistent_format == "jsonl"
     assert cfg.storage.push_log_path == "data/push_log.jsonl"
+
+
+def test_collection_config_hot_topics_defaults() -> None:
+    # 模型级默认值：缺省启用热点、上限 10（loader 缺段/缺字段时兜底）
+    assert CollectionConfig().hot_topics_enabled is True
+    assert CollectionConfig().hot_topics_max == 10
 
 
 def test_storage_config_default_push_log_path() -> None:

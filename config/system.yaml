@@ -11,6 +11,10 @@ collection:
   retries: 2
   user_agent: industry-intelligence-agent
   polite_delay_seconds: 1.5
+  # 动态热点发现（v0.7.0a5）：用 LLM 基于大方向词生成当前行业热点话题，
+  # 热点可用时优先按热点检索；关闭或热点为空时回退固定三族查询。
+  hot_topics_enabled: true
+  hot_topics_max: 10
 
 storage:
   persistent_format: jsonl

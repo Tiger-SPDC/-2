@@ -56,6 +56,8 @@ class RunResult:
     report_paths: dict[str, str] = field(default_factory=dict)
     digest_text: str = ""
     notification_sent: bool = False
+    # 当次运行使用的动态热点话题（LLM 发现；空列表 = 回退固定三族）
+    hot_topics: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
@@ -81,6 +83,7 @@ class Pipeline:
         review_agent: ReviewAgent | None = None,
         report_engine: ReportEngine | None = None,
         notification_adapter: NotificationAdapter | None = None,
+        hot_topics: list[str] | None = None,
     ) -> None:
         self._topic = topic
         self._task = task
@@ -91,6 +94,8 @@ class Pipeline:
         self._resolver = entity_resolver
         self._classifier = event_classifier
         self._extractor = observation_extractor
+        # 动态热点话题（LLM 发现）；None/空 → planner 回退固定三族、门控不并入 extra
+        self._hot_topics = list(hot_topics) if hot_topics else []
         self._planner = planner or SearchPlanner()
         self._dedup = dedup if dedup is not None else Deduplicator()
         self._clusterer = event_clusterer or EventClusterer()
@@ -284,9 +289,12 @@ class Pipeline:
         websearch 文档在采集前先清理。
         """
         docs: list[NormalizedDocument] = []
-        terms = build_relevance_terms(self._topic)
+        # 动态热点并入信号词，保证按热点检索到的文档不被门控误杀
+        hot = self._hot_topics
+        result.hot_topics = list(hot)
+        terms = build_relevance_terms(self._topic, extra=hot)
         try:
-            plans = self._planner.generate_plans(self._topic, self._task)
+            plans = self._planner.generate_plans(self._topic, self._task, hot)
         except Exception as exc:  # noqa: BLE001
             result.errors.append(f"planning: {exc}")
             return docs

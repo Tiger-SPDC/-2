@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## v0.7.0a5 — 2026-08-12
+
+### LLM 动态热点发现 + 热点族优先检索
+
+- **背景**：用户明确关键词（如"充电桩"）只是**大方向锚点**，检索不应依赖预先写死的固定对象（固定企业 × 固定事件词 × 固定官方域名 `site:`），而应在大方向之下**自己发现"当前最热门的话题"（热搜）再据此检索**。
+- **HotTopicGenerator**：`intelligence/hot_topics.py` — 复用 EventClassifier 模式（provider + prompt_template 构造注入，LLMError 降级）。`generate(topic, focus=None, max_topics=10)` 把大方向词（core 或 `--focus` 覆盖）交给 DeepSeek，产出当前行业热点话题短语；无 provider / LLM 失败 / 非法结构 → 空列表。模板 `config/prompts/hot_topics.md`，行业内容运行时来自 Topic 配置，零行业硬编码。
+- **热点族优先**：`SearchPlanner.generate_plans(topic, task, hot_topics=None)` — 热点短语非空时仅生成 `family="hot"` 查询（热点短语 × 地区，受 `QueryBudget.max_hot` 上限）；热点为空 / 组合为空时**回退固定三族**（既有行为完全不变）。两套装配（Pipeline `_collect` 与纯采集 CLI `_cmd_run`）同步接入。
+- **门控联动（关键）**：`build_relevance_terms(topic, extra=())` 把当次热点短语并入相关性信号词，保证按热点检索到的文档不被 v0.7.0a3 门控误杀；Pipeline 与 `_cmd_run` 均以 `extra=hot` 构建 terms。
+- **配置**：`CollectionConfig.hot_topics_enabled=True` / `hot_topics_max=10`（`config/system.yaml -> collection`）；`QueryBudget.max_hot=10`。关闭开关或热点为空即回退，运行不受影响。
+- **可观测**：`RunResult.hot_topics` 记录当次热点；CLI 打印 `Hot topics (N): …` 与 planner 使用族（hot / fallback）。
+- **测试**：新增 `test_hot_topic_generator.py`（降级/容错解析/schema/prompt）、`test_planner_hot.py`（热点族优先/截断/空回退/region 覆盖）、relevance extra 并入、pipeline 热点传参 + 合并门控、config loader 字段；376 全过，ruff / mypy 干净。
+
 ## v0.7.0a4 — 2026-08-12
 
 ### 推送内容日志

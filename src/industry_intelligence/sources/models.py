@@ -19,6 +19,8 @@ class QueryPlan:
     query_string: str
     source_ids: list[str] = field(default_factory=list)
     budget: int = 10
+    # 查询族：company / event / official / general（供适配器打标与预算区分）
+    family: str = "general"
 
 
 @dataclass
@@ -70,3 +72,5 @@ class ParsedDocument:
     author: str | None = None
     language: str | None = None
     summary: str | None = None
+    # 适配器元数据（如 websearch 的 family / official_domain），随标准化文档透传
+    extra: dict[str, object] = field(default_factory=dict)

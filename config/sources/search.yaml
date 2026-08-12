@@ -25,3 +25,21 @@ search:
 # Phase 1 演示/测试用 RSS 订阅源（业务采集启用前请替换为真实、获授权的 feed）
 rss_feeds:
   demo_news: https://news.google.com/rss/search?q=%E5%85%85%E7%94%B5%E6%A1%A9&hl=zh-CN&gl=CN&ceid=CN:zh-Hans
+
+# 网页搜索适配器：直接抓取搜索引擎 HTML 结果页（无 API Key、无账号）。
+# 行业关键词来自 Topic/Task 配置，本文件仅放引擎参数；enabled=false 时回退 RSS 基线。
+# 权威官方站点（site: 限定）按行业在 config/topics/*.yaml 的 official_domains 声明。
+websearch:
+  enabled: true
+  engines:
+    - id: bing
+      base_urls:
+        - https://cn.bing.com/search
+        - https://www.bing.com/search
+      params:
+        mkt: zh-CN
+        setlang: zh-hans
+      max_results: 20
+      delay_seconds: 2.0
+      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+      enabled: true

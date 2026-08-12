@@ -1,9 +1,11 @@
 """搜索计划生成器。
 
 根据 Topic + Task 生成可追踪、可重复的 QueryPlan 列表。
-Phase 1 生成两族查询：
+生成三族查询：
 - 企业族：核心词 × 企业 × 地区（每组企业受 max_per_entity 上限约束）
 - 事件族：核心词 × 事件词 × 地区（每组事件词受 max_per_category 上限约束）
+- 官方站点族：核心词 × 权威官方域名（topic.official_domains，site: 限定，
+  每组域名受 max_per_category 上限约束；无官方域名时该族为空）
 同次运行内按 query_string 指纹去重，总数量受 max_queries 上限约束。
 """
 
@@ -31,26 +33,35 @@ class SearchPlanner:
         companies = self._effective_companies(topic, task)
         focus = self._effective_focus(topic, task)
 
-        candidates: list[str] = []
+        candidates: list[tuple[str, str]] = []  # (query_string, family)
         for company in companies:
             for group, (core, region) in enumerate(product(focus, regions)):
                 if group >= self._budget.max_per_entity:
                     break
-                candidates.append(_compose(core, company, region))
+                candidates.append((_compose(core, company, region), "company"))
         for event in topic.keywords.events:
             for group, (core, region) in enumerate(product(focus, regions)):
                 if group >= self._budget.max_per_category:
                     break
-                candidates.append(_compose(core, event, region))
+                candidates.append((_compose(core, event, region), "event"))
+        for domain in topic.official_domains:
+            for group, core in enumerate(focus):
+                if group >= self._budget.max_per_category:
+                    break
+                candidates.append((_compose(core, f"site:{domain}"), "official"))
 
         seen: set[str] = set()
         plans: list[QueryPlan] = []
-        for query_string in candidates:
+        for query_string, family in candidates:
             if query_string in seen:
                 continue
             seen.add(query_string)
             plans.append(
-                QueryPlan(query_id=_fingerprint(query_string), query_string=query_string)
+                QueryPlan(
+                    query_id=_fingerprint(query_string),
+                    query_string=query_string,
+                    family=family,
+                )
             )
         return plans[: self._budget.max_queries]
 

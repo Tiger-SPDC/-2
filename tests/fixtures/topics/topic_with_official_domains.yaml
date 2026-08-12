@@ -1,0 +1,31 @@
+# 含官方站点域名的 Topic fixture
+topic:
+  id: topic_with_official_domains
+  name: 充电基础设施（含官方站点）
+  version: "0.1.0"
+
+scope:
+  regions:
+    - 中国
+  default_window_days: 7
+
+entities:
+  companies:
+    - canonical_name: 特来电
+      aliases: []
+      priority: 1
+
+keywords:
+  core:
+    - 充电桩
+  events:
+    - 政策
+
+metrics:
+  - station_count
+
+official_domains:
+  - gov.cn
+  - ndrc.gov.cn
+  - miit.gov.cn
+  - nea.gov.cn

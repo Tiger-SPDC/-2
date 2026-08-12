@@ -100,6 +100,33 @@ class NotificationConfig:
 
 
 @dataclass
+class WebSearchEngineConfig:
+    """网页搜索引擎配置（config/sources/search.yaml -> websearch.engines）。
+
+    只含引擎参数，行业关键词一律来自 Topic/Task 配置。
+    """
+
+    id: str
+    base_urls: list[str]
+    params: dict[str, str] = field(default_factory=dict)
+    max_results: int = 20
+    delay_seconds: float | None = None
+    user_agent: str | None = None
+    enabled: bool = True
+
+
+@dataclass
+class WebSearchConfig:
+    """网页搜索适配器配置段（config/sources/search.yaml -> websearch）。
+
+    enabled=false 或引擎列表为空时回退 RSS 基线。
+    """
+
+    enabled: bool = False
+    engines: list[WebSearchEngineConfig] = field(default_factory=list)
+
+
+@dataclass
 class SystemConfig:
     """系统级配置。"""
 
@@ -162,6 +189,8 @@ class TopicProfile:
     entities: TopicEntities = field(default_factory=TopicEntities)
     keywords: TopicKeywords = field(default_factory=TopicKeywords)
     metrics: list[str] = field(default_factory=list)
+    # 权威官方站点域名（用于 site: 限定检索；行业不同则列不同）
+    official_domains: list[str] = field(default_factory=list)
 
 
 @dataclass

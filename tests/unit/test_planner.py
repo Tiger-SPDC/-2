@@ -50,3 +50,63 @@ def test_budget_max_queries_cap(sample_topic: object, sample_task: object) -> No
     planner = SearchPlanner(QueryBudget(max_queries=2))
     plans = planner.generate_plans(sample_topic, sample_task)  # type: ignore[arg-type]
     assert len(plans) == 2
+
+
+def test_official_domain_family(sample_topic: object) -> None:
+    """官方站点族：核心词 × official_domains → "核心词 site:域名"，family=official。"""
+    topic = _topic_with_official_domains(sample_topic)  # type: ignore[arg-type]
+    plans = SearchPlanner().generate_plans(topic, _minimal_task())  # type: ignore[arg-type]
+    official = [p for p in plans if p.family == "official"]
+    queries = [p.query_string for p in official]
+    assert "充电桩 site:gov.cn" in queries
+    assert "充电桩 site:nea.gov.cn" in queries
+    assert "充电基础设施 site:gov.cn" in queries
+    assert all("site:" in q for q in queries)
+    assert all(p.family == "official" for p in official)
+    # 通用族不受影响
+    assert any(p.family == "company" for p in plans)
+    assert any(p.family == "event" for p in plans)
+
+
+def test_official_family_empty_without_domains(
+    sample_topic: object, sample_task: object
+) -> None:
+    plans = SearchPlanner().generate_plans(sample_topic, sample_task)  # type: ignore[arg-type]
+    assert not any(p.family == "official" for p in plans)
+
+
+def test_official_family_respects_per_category_budget(sample_topic: object) -> None:
+    topic = _topic_with_official_domains(sample_topic)  # type: ignore[arg-type]
+    planner = SearchPlanner(QueryBudget(max_per_category=1))
+    plans = planner.generate_plans(topic, _minimal_task())  # type: ignore[arg-type]
+    official = [p for p in plans if p.family == "official"]
+    # 每个域名只取第 1 个核心词（2 个域名 → 2 条查询）
+    assert len(official) == 2
+    assert sorted(p.query_string for p in official) == [
+        "充电桩 site:gov.cn",
+        "充电桩 site:nea.gov.cn",
+    ]
+    # 每个域名第 2 个核心词被截断
+    assert not any("充电基础设施 site:" in p.query_string for p in official)
+
+
+def test_official_family_respects_total_budget(sample_topic: object) -> None:
+    topic = _topic_with_official_domains(sample_topic)  # type: ignore[arg-type]
+    planner = SearchPlanner(QueryBudget(max_queries=3))
+    plans = planner.generate_plans(topic, _minimal_task())  # type: ignore[arg-type]
+    assert len(plans) == 3
+    # 企业/事件族优先（通用覆盖优先），official 族占用剩余预算
+    assert plans[0].family == "company"
+
+
+def _topic_with_official_domains(topic: object):
+    """在 sample_topic 基础上附加官方站点域名。"""
+    import dataclasses
+
+    return dataclasses.replace(
+        topic, official_domains=["gov.cn", "nea.gov.cn"]  # type: ignore[arg-type]
+    )
+
+
+def _minimal_task() -> TaskConfig:
+    return TaskConfig(id="tk_official", topic_id="t1", enabled=True)

@@ -44,6 +44,8 @@ class NormalizedDocument:
     matched_keywords: list[str] = field(default_factory=list)
     raw_type: str = "html"
     parser_version: str = "1.0"
+    # 适配器元数据（如 websearch 的 family / official_domain），供 JSONL/SQLite 追溯
+    extra: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         """序列化为可 JSON 化的 dict（JSONL 写入）。"""
@@ -66,6 +68,7 @@ class NormalizedDocument:
             "matched_keywords": self.matched_keywords,
             "raw_type": self.raw_type,
             "parser_version": self.parser_version,
+            "extra": self.extra,
         }
 
     @classmethod
@@ -90,6 +93,7 @@ class NormalizedDocument:
             matched_keywords=_opt_str_list(data.get("matched_keywords")),
             raw_type=str(data.get("raw_type", "html")),
             parser_version=str(data.get("parser_version", "1.0")),
+            extra=_opt_dict(data.get("extra")),
         )
 
 
@@ -98,6 +102,13 @@ def _opt_str(value: object | None) -> str | None:
     if value is None or value == "":
         return None
     return str(value)
+
+
+def _opt_dict(value: object | None) -> dict[str, object]:
+    """JSON 反序列化的 extra 字段安全转 dict。"""
+    if not isinstance(value, dict):
+        return {}
+    return {str(k): v for k, v in value.items()}
 
 
 def _opt_str_list(value: object | None) -> list[str]:

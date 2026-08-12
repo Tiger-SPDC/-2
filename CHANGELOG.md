@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## v0.7.0a1 — 2026-08-12
+
+### 真实网页搜索（Bing SERP 爬取）+ 权威官方站点检索
+
+- **WebSearchAdapter**：`sources/websearch_adapter.py` — 无 API Key、无账号，直接抓取 Bing SERP HTML 页。纯 stdlib `html.parser.HTMLParser` 解析 `<li class="b_algo">` 结果块（标题链接 + 摘要），过滤 Bing/Microsoft 内部链接；多 base_url 地理兜底（cn.bing.com → www.bing.com）；查询间礼貌 sleep + 失败退避重试。
+- **官方站点 site: 限定检索**：`TopicProfile.official_domains`（config/topics/*.yaml，如 gov.cn/ndrc.gov.cn/miit.gov.cn/nea.gov.cn）→ `SearchPlanner` 生成 `"核心词 site:域名"` 查询族（family="official"），结果打 `official_domain` 标记供追溯。检索哪些官网由行业关键词决定，零行业硬编码。
+- **CompositeAdapter**：`sources/composite_adapter.py` — 聚合 [RSS, WebSearch]，discover 跨源 URL 去重，fetch/parse/normalize 按 source_id 前缀路由；health_check = 任一子适配器健康。websearch 禁用/失败时优雅降级 RSS-only。
+- **装配**：main.py `_build_adapter()` 替换两处硬编码 RSSAdapter，修掉 `if not feeds: return 0` 早退守卫；消费此前未用的 `polite_delay_seconds` / `retries` 配置。
+- **配置**：`config/sources/search.yaml` 新增 `websearch:` 段（引擎参数，行业无关）；`QueryPlan.family` 查询族标记。
+- **extra 追溯透传**：`ParsedDocument` / `NormalizedDocument` 增加 `extra` 字段并贯穿 parse→normalize→to_dict→from_dict 全链路（HTML/RSS/WebSearch 适配器），`official_domain` / `family` / `query_string` 等标记随文档持久化到 JSONL，供追溯"来自官方站点"的文档。
+- **测试**：新增 34 个（SERP 解析 / 官方查询族 / 适配器 discover·限速·去重·base_url 兜底 / 组合路由·去重·健康检查 / 配置加载 / extra 全链路透传），全离线（file:// fixture + fetch/sleep mock）；328 全过，ruff / mypy 干净。
+- **边界**：公开 HTML + 礼貌限速，不绕过登录/验证码/付费墙（docs/03 §8.5）。后续（V0.8+）再按需接入个别官网站内自建搜索。
+
 ## v0.6.1a1 — 2026-08-11
 
 ### 真实端到端验收修复（DeepSeek 集成）

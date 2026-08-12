@@ -111,6 +111,7 @@ class RSSAdapter(SourceAdapter):
             published_at=item.published_at,
             author=str(item.extra.get("author") or "") or None,
             summary=summary or None,
+            extra=dict(item.extra),
         )
 
     def normalize(self, parsed: ParsedDocument, topic_id: str) -> NormalizedDocument:
@@ -132,6 +133,7 @@ class RSSAdapter(SourceAdapter):
             language=parsed.language,
             summary=parsed.summary,
             raw_type=parsed.raw_type,
+            extra=parsed.extra,
         )
 
     def health_check(self) -> bool:

@@ -46,3 +46,8 @@ keywords:
 # 关注的指标（id 参考 config/taxonomies/metrics.yaml）
 metrics:
   - <metric_id>
+
+# 权威官方站点域名（用于 site: 限定检索，可选；行业不同则列不同）
+# 示例：gov.cn / ndrc.gov.cn / miit.gov.cn / nea.gov.cn
+official_domains:
+  - <官方域名1>

@@ -78,6 +78,7 @@ class HTMLAdapter(SourceAdapter):
             content_text=text,
             raw_type="html",
             published_at=item.published_at,
+            extra=dict(item.extra),
         )
 
     def normalize(self, parsed: ParsedDocument, topic_id: str) -> NormalizedDocument:
@@ -98,6 +99,7 @@ class HTMLAdapter(SourceAdapter):
             language=parsed.language,
             summary=parsed.summary,
             raw_type=parsed.raw_type,
+            extra=parsed.extra,
         )
 
     def health_check(self) -> bool:

@@ -215,7 +215,6 @@ def _cmd_run(
         resolve_task,
     )
     from industry_intelligence.normalization import Deduplicator
-    from industry_intelligence.sources import RSSAdapter
     from industry_intelligence.storage import JSONLStore
 
     try:
@@ -234,14 +233,13 @@ def _cmd_run(
     plans = SearchPlanner().generate_plans(topic, task)
     print(f"Planner: {len(plans)} query plan(s) for topic '{topic.id}'")
 
-    feeds = _load_rss_feeds()
-    if not feeds:
+    adapter = _build_adapter(sys_cfg)
+    if not adapter.health_check():
         print(
-            "No rss_feeds configured in config/sources/search.yaml; nothing to collect."
+            "No sources configured in config/sources/search.yaml; nothing to collect."
         )
         return 0
 
-    adapter = RSSAdapter(feeds, timeout=sys_cfg.collection.request_timeout_seconds)
     store = JSONLStore(output)
     dedup = Deduplicator()
 
@@ -296,7 +294,6 @@ def _cmd_run_phase2(
     from industry_intelligence.intelligence import EventClassifier, EventClusterer
     from industry_intelligence.llm import DeepSeekProvider, LLMError, load_prompt
     from industry_intelligence.metrics import ObservationExtractor
-    from industry_intelligence.sources import RSSAdapter
     from industry_intelligence.storage import JSONLStore, SQLiteStore
 
     try:
@@ -319,12 +316,11 @@ def _cmd_run_phase2(
         print(f"LLM config error: {exc}")
         return 1
 
-    feeds = _load_rss_feeds()
-    if not feeds:
-        print("No rss_feeds configured in config/sources/search.yaml; nothing to collect.")
+    adapter = _build_adapter(sys_cfg)
+    if not adapter.health_check():
+        print("No sources configured in config/sources/search.yaml; nothing to collect.")
         return 0
 
-    adapter = RSSAdapter(feeds, timeout=sys_cfg.collection.request_timeout_seconds)
     jsonl_store = JSONLStore(output)
     sqlite_store = SQLiteStore(db_path)
     if rebuild_db:
@@ -461,6 +457,55 @@ def _load_rss_feeds() -> dict[str, str]:
     if not isinstance(feeds, dict):
         return {}
     return {str(k): str(v) for k, v in feeds.items() if v}
+
+
+def _load_websearch_config() -> Any:
+    """从 config/sources/search.yaml 读取 websearch 段（缺失→默认禁用）。"""
+    from industry_intelligence.config.loader import load_websearch_config
+
+    return load_websearch_config(CONFIG_DIR)
+
+
+def _build_adapter(sys_cfg: Any) -> Any:
+    """构建 [RSS, WebSearch] 组合适配器；websearch 禁用时回退 RSS-only。
+
+    行业数据全部来自 config（rss_feeds / websearch 引擎 / topic 官方域名），
+    此处只做装配，不含任何行业硬编码。
+    """
+    from industry_intelligence.sources import (
+        CompositeAdapter,
+        RSSAdapter,
+        WebSearchAdapter,
+    )
+
+    adapters: list[Any] = []
+    feeds = _load_rss_feeds()
+    if feeds:
+        adapters.append(
+            RSSAdapter(
+                feeds,
+                timeout=sys_cfg.collection.request_timeout_seconds,
+                user_agent=sys_cfg.collection.user_agent,
+            )
+        )
+    web = _load_websearch_config()
+    if web.enabled:
+        for engine in web.engines:
+            if not engine.enabled:
+                continue
+            adapters.append(
+                WebSearchAdapter(
+                    engine,
+                    timeout=sys_cfg.collection.request_timeout_seconds,
+                    delay_seconds=(
+                        engine.delay_seconds
+                        or sys_cfg.collection.polite_delay_seconds
+                    ),
+                    user_agent=engine.user_agent or sys_cfg.collection.user_agent,
+                    retries=sys_cfg.collection.retries,
+                )
+            )
+    return CompositeAdapter(adapters)
 
 
 if __name__ == "__main__":

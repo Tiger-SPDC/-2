@@ -11,6 +11,7 @@ from industry_intelligence.config.loader import (
     load_system_config,
     load_task,
     load_topic,
+    load_websearch_config,
     resolve_task,
 )
 
@@ -33,6 +34,16 @@ def test_load_invalid_topic_raises(fixtures_dir: Path) -> None:
 def test_load_missing_topic_raises(fixtures_dir: Path) -> None:
     with pytest.raises(ConfigError, match="not found"):
         load_topic("no_such_topic", config_dir=fixtures_dir)
+
+
+def test_load_topic_official_domains(fixtures_dir: Path) -> None:
+    topic = load_topic("topic_with_official_domains", config_dir=fixtures_dir)
+    assert topic.official_domains == ["gov.cn", "ndrc.gov.cn", "miit.gov.cn", "nea.gov.cn"]
+
+
+def test_load_topic_without_official_domains_defaults_empty(fixtures_dir: Path) -> None:
+    topic = load_topic("valid_charging_pile", config_dir=fixtures_dir)
+    assert topic.official_domains == []
 
 
 def test_load_valid_task(fixtures_dir: Path) -> None:
@@ -122,6 +133,55 @@ def test_load_notification_config(project_root: Path) -> None:
     assert cfg.notification.serverchan_key_env == "SERVERCHAN_KEY"
     assert cfg.notification.retry == 2
     assert cfg.notification.timeout_seconds == 10
+
+
+def test_load_websearch_config_engines(fixtures_dir: Path) -> None:
+    cfg = load_websearch_config(fixtures_dir)
+    assert cfg.enabled is True
+    assert len(cfg.engines) == 1
+    engine = cfg.engines[0]
+    assert engine.id == "bing"
+    assert engine.base_urls == [
+        "https://cn.bing.com/search",
+        "https://www.bing.com/search",
+    ]
+    assert engine.params == {"mkt": "zh-CN", "setlang": "zh-hans"}
+    assert engine.max_results == 20
+    assert engine.delay_seconds == 2.0
+    assert engine.user_agent == "Mozilla/5.0 (test)"
+    assert engine.enabled is True
+
+
+def test_load_websearch_config_missing_file_defaults_disabled(
+    fixtures_dir: Path,
+) -> None:
+    cfg = load_websearch_config(fixtures_dir / "sources" / "no_such_dir")
+    assert cfg.enabled is False
+    assert cfg.engines == []
+
+
+def test_load_websearch_config_missing_section_defaults_disabled(
+    tmp_path: Path,
+) -> None:
+    # 仅有 rss_feeds、无 websearch 段的 search.yaml
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir(parents=True)
+    (sources_dir / "search.yaml").write_text(
+        "rss_feeds:\n  demo: https://example.com/rss\n", encoding="utf-8"
+    )
+    cfg = load_websearch_config(tmp_path)
+    assert cfg.enabled is False
+    assert cfg.engines == []
+
+
+def test_load_websearch_config_bad_engine_raises(tmp_path: Path) -> None:
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir(parents=True)
+    (sources_dir / "search.yaml").write_text(
+        "websearch:\n  enabled: true\n  engines:\n    - id: bing\n", encoding="utf-8"
+    )
+    with pytest.raises(ConfigError, match="base_urls"):
+        load_websearch_config(tmp_path)
 
 
 def test_load_event_types(project_root: Path) -> None:

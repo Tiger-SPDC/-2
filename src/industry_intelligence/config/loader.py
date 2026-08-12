@@ -28,6 +28,8 @@ from industry_intelligence.config.models import (
     TopicKeywords,
     TopicProfile,
     TopicScope,
+    WebSearchConfig,
+    WebSearchEngineConfig,
 )
 
 
@@ -59,6 +61,76 @@ def load_task(task_id: str, config_dir: str | Path = "config") -> TaskConfig:
     path = Path(config_dir) / "tasks" / f"{task_id}.yaml"
     data = _read_yaml(path)
     return _parse_task(data, task_id, str(path))
+
+
+def load_websearch_config(config_dir: str | Path = "config") -> WebSearchConfig:
+    """加载 config/sources/search.yaml -> websearch 段。
+
+    文件或段缺失时返回默认禁用配置（不抛错），供 main.py 优雅回退 RSS 基线。
+    """
+    path = Path(config_dir) / "sources" / "search.yaml"
+    data = _read_yaml_optional(path)
+    if not data:
+        return WebSearchConfig()
+    section = data.get("websearch")
+    if not isinstance(section, dict):
+        return WebSearchConfig()
+
+    engines: list[WebSearchEngineConfig] = []
+    engines_raw = section.get("engines")
+    if isinstance(engines_raw, list):
+        for idx, item in enumerate(engines_raw):
+            if not isinstance(item, dict):
+                raise ConfigError(f"{path}: websearch.engines[{idx}] must be a mapping")
+            engine_id = item.get("id")
+            if not engine_id:
+                raise ConfigError(f"{path}: websearch.engines[{idx}] missing 'id'")
+            base_urls = _as_str_list(
+                item.get("base_urls"),
+                f"websearch.engines[{idx}].base_urls",
+                str(path),
+            )
+            if not base_urls:
+                raise ConfigError(
+                    f"{path}: websearch.engines[{idx}] must have non-empty 'base_urls'"
+                )
+            params_raw = item.get("params", {})
+            if not isinstance(params_raw, dict):
+                raise ConfigError(
+                    f"{path}: websearch.engines[{idx}].params must be a mapping"
+                )
+            params = {str(k): str(v) for k, v in params_raw.items()}
+            engines.append(
+                WebSearchEngineConfig(
+                    id=str(engine_id),
+                    base_urls=base_urls,
+                    params=params,
+                    max_results=_as_int(
+                        item.get("max_results") or 20,
+                        f"websearch.engines[{idx}].max_results",
+                        str(path),
+                    ),
+                    delay_seconds=_as_optional_float(
+                        item.get("delay_seconds"),
+                        f"websearch.engines[{idx}].delay_seconds",
+                        str(path),
+                    ),
+                    user_agent=_as_optional_str(
+                        item.get("user_agent"),
+                        f"websearch.engines[{idx}].user_agent",
+                        str(path),
+                    ),
+                    enabled=_as_bool(
+                        item.get("enabled", True),
+                        f"websearch.engines[{idx}].enabled",
+                        str(path),
+                    ),
+                )
+            )
+    return WebSearchConfig(
+        enabled=_as_bool(section.get("enabled"), "websearch.enabled", str(path)),
+        engines=engines,
+    )
 
 
 def load_event_types(config_dir: str | Path = "config") -> dict[str, str]:
@@ -98,6 +170,14 @@ def resolve_task(task: TaskConfig, topic: TopicProfile) -> TaskConfig:
 # ---------------------------------------------------------------------------
 # 内部实现
 # ---------------------------------------------------------------------------
+
+
+def _read_yaml_optional(path: str | Path) -> dict[str, object] | None:
+    """读取 YAML；文件不存在时返回 None（不抛错）。"""
+    p = Path(path)
+    if not p.is_file():
+        return None
+    return _read_yaml(p)
 
 
 def _read_yaml(path: str | Path) -> dict[str, object]:
@@ -306,6 +386,9 @@ def _parse_topic(data: dict[str, object], topic_id: str, path: str) -> TopicProf
             exclude=_as_str_list(keywords_raw.get("exclude"), "keywords.exclude", path),
         ),
         metrics=_as_str_list(data.get("metrics"), "metrics", path),
+        official_domains=_as_str_list(
+            data.get("official_domains"), "official_domains", path
+        ),
     )
 
 
@@ -424,6 +507,18 @@ def _as_int_list(value: object, field: str, path: str) -> list[int]:
     ):
         raise ConfigError(f"{path}: field {field} must be a list of integers")
     return list(value)
+
+
+def _as_optional_float(value: object, field: str, path: str) -> float | None:
+    if value is None:
+        return None
+    return _as_float(value, field, path)
+
+
+def _as_optional_str(value: object, field: str, path: str) -> str | None:
+    if value is None:
+        return None
+    return _as_str(value, field, path)
 
 
 def _as_optional_str_list(value: object, field: str) -> list[str] | None:

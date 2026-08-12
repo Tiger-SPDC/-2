@@ -66,3 +66,10 @@ metrics:
   - charger_count
   - charging_volume
   - utilization_rate
+
+# 权威官方站点域名（用于 site: 限定检索；行业不同则列不同）
+official_domains:
+  - gov.cn
+  - ndrc.gov.cn      # 国家发展和改革委员会
+  - miit.gov.cn      # 工业和信息化部
+  - nea.gov.cn       # 国家能源局

@@ -22,6 +22,22 @@ FORMAT_EXCEL = "excel"
 FORMAT_DIGEST = "digest"
 
 
+def _repo_relative(path: str) -> str:
+    """把报告绝对路径转成相对仓库根的展示路径（正斜杠）。
+
+    GitHub runner 的绝对路径（/home/runner/work/...）既点不开、又浪费推送预算；
+    相对路径 output/reports/<run_id>/report.md 既可读又省字。转不了时回退原值。
+    """
+    if not path:
+        return ""
+    p = Path(path)
+    try:
+        rel = p.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        return p.as_posix()
+    return rel.as_posix()
+
+
 @dataclass
 class ReportEngineResult:
     """一次报告生成的结果汇总。"""
@@ -105,7 +121,9 @@ class ReportEngine:
         if self._config.wechat_digest:
             try:
                 md_path = result.paths.get(FORMAT_MARKDOWN, "")
-                digest = DigestFormatter().render(bundle, report_path=md_path)
+                digest = DigestFormatter().render(
+                    bundle, report_path=_repo_relative(md_path)
+                )
                 result.digest_text = digest
                 path = run_dir / "digest.txt"
                 path.write_text(digest, encoding="utf-8")

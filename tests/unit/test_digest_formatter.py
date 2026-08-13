@@ -6,6 +6,7 @@ from industry_intelligence.reporting.builder import ReportDataBundle
 from industry_intelligence.reporting.formatters.digest import (
     _MAX_CHARS,
     DigestFormatter,
+    _truncate,
 )
 
 _CLAIM = {
@@ -43,7 +44,7 @@ def test_render_contains_three_sections() -> None:
     text = DigestFormatter().render(_bundle())
     for title in (
         "一、本周一句话判断",
-        "二、最重要的 5 件事",
+        "二、最重要的",
         "三、企业竞争变化",
     ):
         assert title in text
@@ -99,7 +100,7 @@ def test_top5_prioritizes_hot_matching_event() -> None:
     text = DigestFormatter().render(
         _bundle(events=events, hot_topics=["液冷超充"])
     )
-    section = text.split("二、最重要的 5 件事")[1].split("三、企业竞争变化")[0]
+    section = text.split("二、最重要的")[1].split("三、企业竞争变化")[0]
     assert section.index("液冷超充站落地北京") < section.index("普通充电新闻")
 
 
@@ -118,8 +119,8 @@ def test_long_text_truncated() -> None:
     assert "完整报告：output/r1/report.md" in text
 
 
-def test_fit_fallback_caps_when_sections_all_full() -> None:
-    """各节都接近上限时，整体仍超 600 字则由 _fit 兜底截断（标记「已截断」）。"""
+def test_reduces_items_not_truncates_when_over_budget() -> None:
+    """整体超预算时减条数（而非截半句）：条目完整、条数在 3~5、总长 ≤600。"""
     events = [
         {"event_id": f"e{i}", "event_type_id": "t", "title": f"标题{i}" + "字" * 40,
          "event_date": "2026-01-08", "summary": "s", "confidence": 1.0}
@@ -134,9 +135,42 @@ def test_fit_fallback_caps_when_sections_all_full() -> None:
     text = DigestFormatter().render(
         _bundle(events=events, claims=claims), report_path="output/r1/report.md"
     )
-    assert "已截断" in text
     assert len(text) <= _MAX_CHARS
     assert "完整报告：output/r1/report.md" in text
+    # 减条数已适配，无需 _fit 硬截断
+    assert "已截断" not in text
+    # 5 件事保留条数在 3~5
+    top_label = text.split("二、最重要的 ")[1].split(" 件事")[0]
+    assert top_label.isdigit() and 3 <= int(top_label) <= 5
+    # 企业节保留条数在 3~5
+    entity_lines = [
+        line for line in text.split("三、企业竞争变化")[1].splitlines()
+        if line.startswith("- ")
+    ]
+    assert 3 <= len(entity_lines) <= 5
+
+
+def test_truncate_cuts_at_sentence_boundary() -> None:
+    """语义截断：优先截到句号，不硬切半句；无边界时才加省略号且 ≤ max_len。"""
+    # 句号位置靠后（>= max_len//2）→ 截到句号，不加省略号
+    out = _truncate("甲" * 25 + "。" + "乙" * 100, 40)
+    assert out == "甲" * 25 + "。"
+    assert "…" not in out
+    assert len(out) <= 40
+    # 无句子边界 → 省略号，且结果不超 max_len
+    out2 = _truncate("长" * 100, 30)
+    assert out2.endswith("…")
+    assert len(out2) <= 30
+
+
+def test_fit_fallback_caps_and_marks() -> None:
+    """_fit 兜底：正文极端超长时硬截并加「已截断」，总长 ≤ limit，footer 保留。"""
+    body = "字" * 700
+    footer = "\n数据质量：High"
+    text = DigestFormatter()._fit(body, footer, limit=600)
+    assert "已截断" in text
+    assert len(text) <= 600
+    assert footer in text
 
 
 def test_entity_changes_fills_up_to_min_when_sparse() -> None:

@@ -18,10 +18,18 @@ _MAX_CHARS = 600
 # 企业节最小条数：有动态的企业不足此数时才用跟踪企业"暂无动态"补足
 _MIN_ENTITY_LINES = 3
 
-# 各节字数上限（600 字内做预算分配，保证企业节不被前两节挤掉）
-_ONE_LINER_MAX = 50  # 一句话判断
-_TOP5_TITLE_MAX = 30  # 5 件事每条标题
-_ENTITY_TEXT_MAX = 42  # 企业节每条动态文案（不含实体名与标签）
+# 各节条数上限与最小保留条数：整体超长时"减条数"（5→4→3），而非截断单条
+_MAX_ITEMS = 5
+_MIN_TOP_ITEMS = 3  # 5 件事最少保留条数
+
+# 各节"单条"字数上限：仅当单条极长时才语义截断（截到句号，不硬切半句）。
+# 正常内容应完整保留；整体超长时靠"减条数"（5→4→3）适配，而非截断单条。
+_ONE_LINER_MAX = 60  # 一句话判断
+_TOP5_TITLE_MAX = 40  # 5 件事每条标题
+_ENTITY_TEXT_MAX = 60  # 企业节每条动态文案（不含实体名与标签）
+
+# 语义截断的句子结束符（优先截到这里，避免话说一半）
+_SENTENCE_END = "。！？；!?;"
 
 
 def _to_float(value: object, default: float = 0.0) -> float:
@@ -42,50 +50,108 @@ def _as_list(value: object | None) -> list[object]:
 
 
 def _truncate(text: str, max_len: int) -> str:
-    """超长文本截断并加省略号（按字符截断，CJK 友好，结果 ≤ max_len）。"""
+    """语义截断：超长时优先截到句子结束符（。！？；），避免"话说一半"。
+
+    若 max_len 内存在较靠后的句子边界，截到该处（完整句子，不加省略号）；
+    否则硬截并加省略号。结果 ≤ max_len。
+    """
     text = text.strip()
     if len(text) <= max_len:
         return text
-    return text[: max_len - 1].rstrip() + "…"
+    head = text[:max_len]
+    idx = -1
+    for i in range(len(head) - 1, -1, -1):
+        if head[i] in _SENTENCE_END:
+            idx = i
+            break
+    # 句子边界不能太靠前（否则只剩半句），阈值取一半
+    if idx >= max_len // 2:
+        return text[: idx + 1].rstrip()
+    return head.rstrip()[: max_len - 1] + "…"
 
 
 class DigestFormatter:
     """把 ReportDataBundle 渲染为微信推送摘要文本。"""
 
     def render(self, bundle: ReportDataBundle, report_path: str = "") -> str:
+        hot_line = self._hot_topics_line(bundle)
+        one_liner = self._one_liner(bundle) or "暂无明确判断。"
+        top5 = self._top5(bundle)
+        entity_lines = self._entity_changes(bundle)
+        footer = f"\n数据质量：{self._quality_level(bundle)}"
+        if report_path:
+            footer += f"\n完整报告：{report_path}"
+        return self._fit_sections(
+            bundle, hot_line, one_liner, top5, entity_lines, footer
+        )
+
+    # ------------------------------------------------------------- 组装
+
+    def _build_body(
+        self,
+        bundle: ReportDataBundle,
+        hot_line: str,
+        one_liner: str,
+        top5: list[str],
+        entity_lines: list[str],
+    ) -> str:
+        """按给定条数组装正文（条数由 _fit_sections 决定，此处不截断）。"""
         parts: list[str] = []
         parts.append(f"【产业竞争情报周报 | {bundle.topic_id}】")
         parts.append(f"周期：{bundle.period_start} ~ {bundle.period_end}")
-
-        hot_line = self._hot_topics_line(bundle)
         if hot_line:
             parts.append("")
             parts.append(hot_line)
-
         parts.append("")
         parts.append("一、本周一句话判断")
-        parts.append(self._one_liner(bundle) or "暂无明确判断。")
+        parts.append(one_liner)
         parts.append("")
-
-        parts.append("二、最重要的 5 件事")
-        top5 = self._top5(bundle)
+        parts.append(f"二、最重要的 {len(top5) or 1} 件事")
         if top5:
             parts.extend(f"{i}. {item}" for i, item in enumerate(top5, 1))
         else:
             parts.append("1. 本期无重大事件。")
         parts.append("")
-
         parts.append("三、企业竞争变化")
-        entity_lines = self._entity_changes(bundle)
         if entity_lines:
             parts.extend(entity_lines)
         else:
             parts.append("- 暂无企业动态。")
+        return "\n".join(parts)
 
-        body = "\n".join(parts)
-        footer = f"\n数据质量：{self._quality_level(bundle)}"
-        if report_path:
-            footer += f"\n完整报告：{report_path}"
+    def _fit_sections(
+        self,
+        bundle: ReportDataBundle,
+        hot_line: str,
+        one_liner: str,
+        top5: list[str],
+        entity_lines: list[str],
+        footer: str,
+    ) -> str:
+        """组装正文：整体超预算时优先减条数（5→4→3），而非截断单条。
+
+        顺序为先 5 件事、后企业节都从多到少尝试，找到首个 ≤600 的组合；
+        仍超时才由 _fit 兜底截正文。
+        """
+        budget = _MAX_CHARS - len(footer)
+        top_opts = (
+            list(range(min(_MAX_ITEMS, len(top5)), _MIN_TOP_ITEMS - 1, -1))
+            or [len(top5)]
+        )
+        ent_opts = (
+            list(range(min(_MAX_ITEMS, len(entity_lines)), _MIN_ENTITY_LINES - 1, -1))
+            or [len(entity_lines)]
+        )
+        for n_top in top_opts:
+            for n_ent in ent_opts:
+                body = self._build_body(
+                    bundle, hot_line, one_liner, top5[:n_top], entity_lines[:n_ent]
+                )
+                if len(body) <= budget:
+                    return body + footer
+        body = self._build_body(
+            bundle, hot_line, one_liner, top5[:3], entity_lines[:3]
+        )
         return self._fit(body, footer)
 
     # ------------------------------------------------------------- 各节

@@ -10,7 +10,7 @@
 2. JSON 格式为：
    {"claims": [{"claim_text": "...", "claim_type": "fact|inference|forecast|unknown", "confidence": 0.85, "entity_id": "...", "evidence_document_ids": ["..."], "evidence_observation_ids": ["..."]}]}
 3. claim_type 与 confidence 规则同竞争分析。
-4. entity_id 来自给定企业列表；行业整体技术趋势结论可留空。
+4. entity_id 标注本结论具体涉及的企业名（用公司常见简称；若该企业在给定列表中，用列表中的 canonical_name）；行业整体技术趋势结论可留空。
 5. evidence_document_ids / evidence_observation_ids 只能引用输入数据中的 ID。
 6. 只描述文本中明确出现的内容，不得编造产品参数、技术指标或发布日期。
 7. 技术热度仅是公开活动热度，不等于技术水平或市场地位。

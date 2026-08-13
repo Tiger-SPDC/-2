@@ -1,9 +1,9 @@
 # PROJECT_STATUS
 
 - **Project:** Industry Intelligence Agent
-- **Version:** v0.7.0a6
-- **Date:** 2026-08-12
-- **Current phase:** Phase 5（GitHub 全自动运行已实现，本地 + GitHub Actions 真实端到端验收全部通过——含微信推送；v0.7.0a1 新增真实网页搜索——Bing SERP 爬取 + 官方站点 site: 限定；v0.7.0a2 微信摘要精简为 3 节 + ≤600 字；v0.7.0a3 推送相关性门控——垃圾内容不进摘要，企业节稳定 5 条；v0.7.0a4 推送内容日志——每次推送落 data/push_log.jsonl；v0.7.0a5 LLM 动态热点发现——大方向词只是锚点，检索以 LLM 发现的当前行业热点为主、固定三族查询降级兜底；v0.7.0a6 推送反映 LLM 热点——摘要顶部"本期热点关注"行 + 5 件事热点优先 + 企业节内容优先、无内容企业不再占用位置）
+- **Version:** v0.7.0a7
+- **Date:** 2026-08-13
+- **Current phase:** Phase 5（GitHub 全自动运行已实现，本地 + GitHub Actions 真实端到端验收全部通过——含微信推送；v0.7.0a1 新增真实网页搜索——Bing SERP 爬取 + 官方站点 site: 限定；v0.7.0a2 微信摘要精简为 3 节 + ≤600 字；v0.7.0a3 推送相关性门控——垃圾内容不进摘要，企业节稳定 5 条；v0.7.0a4 推送内容日志——每次推送落 data/push_log.jsonl；v0.7.0a5 LLM 动态热点发现——大方向词只是锚点，检索以 LLM 发现的当前行业热点为主、固定三族查询降级兜底；v0.7.0a6 推送反映 LLM 热点——摘要顶部"本期热点关注"行 + 5 件事热点优先 + 企业节内容优先、无内容企业不再占用位置；v0.7.0a7 推送质量——放宽分析 prompt 允许标注未跟踪企业、报告层实体归一化、分节预算保证企业节不被截断）
 - **Code implementation:** 配置加载 / 搜索计划（含官方站点查询族）/ RSS·HTML·WebSearch·Composite 采集（Bing SERP 爬取 + 权威官方域名 site: 限定，无 API Key）/ 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ Phase 4（Review Agent 7 项检查 + Markdown·Excel·微信摘要报告 + 数据质量章节 + Server酱通知）/ Phase 5（通用调度器 + 4 个 GitHub Actions 工作流 + auto-commit + Artifact + 失败通知 + retry）/ CLI
 - **Repository safety boundary:** Required
 - **Preferred local Python:** 3.12 (3.11+ acceptable)
@@ -73,6 +73,8 @@
 - [x] v0.7.0a4：推送内容日志（每次微信推送尝试——无论成败——向 `data/push_log.jsonl` 追加时间戳/run_id/topic_id/通道/标题/结果/错误/推送正文全文，路径经 `storage.push_log_path` 可配，随 GitHub 运行提交回仓库；日志写失败不影响推送）；355 测试 + ruff/mypy 干净
 - [x] v0.7.0a5：LLM 动态热点发现（`HotTopicGenerator` 用 DeepSeek 基于大方向词生成当前行业热点，`SearchPlanner` 热点族优先——热点短语 × 地区 family="hot"，热点为空回退固定三族；热点短语并入相关性门控信号词避免误杀；`CollectionConfig.hot_topics_enabled/max` 可配；`RunResult.hot_topics` 可观测；两套采集装配同步接入）；376 测试 + ruff/mypy 干净
 - [x] 真实端到端验收（本地，DEEPSEEK_API_KEY）：`charging_cn_weekly` 全链路 run `9e6c7ad9041d4757 [success]` — 50 doc / 50 event / 23 Claim / 100% 证据覆盖率 / Review 18 pass·0 reject·5 downgrade，无错误；`persist: CHECK constraint failed`（INSERT OR REPLACE 触发外键 SET NULL）已修复实跑确认
+- [x] v0.7.0a6：推送反映 LLM 热点（`ReportDataBundle.hot_topics` 三级透传；摘要顶部"本期热点关注"行 + Markdown 执行摘要热点行；5 件事按热点命中优先排序；企业节内容优先——候选实体含未跟踪企业、无内容企业不再占位）；GitHub 实跑确认热点行出现、企业节内容优先生效；383 测试 + ruff/mypy 干净
+- [x] v0.7.0a7：推送质量（放宽 4 个分析 prompt 的 entity_id 规则允许标注未跟踪企业；`ReportDataBuilder._canonicalize_entity` 别名归一——映射来自 TopicProfile 零硬编码；`DigestFormatter` 分节预算——一句话≤50/5件事每条≤30/企业节每条≤42 字，保证企业节不被截断）；全量 pytest/ruff/mypy 干净
 
 ## 已完成（GitHub 验收）
 

@@ -189,6 +189,21 @@ class ReportDataBuilder:
             for c in self._topic.entities.companies
         ]
 
+    def _canonicalize_entity(self, entity_id: object) -> object:
+        """把 claim 的 entity_id 归一到跟踪企业的 canonical_name（别名 → 标准名）。
+
+        映射全部来自 TopicProfile 配置（零硬编码）；非跟踪企业（如 LLM 新标注的
+        "蔚来"）直接信任原值。这样"特来电新能源"不会与"特来电"在企业节重复。
+        """
+        if not isinstance(entity_id, str) or not entity_id:
+            return entity_id
+        folded = entity_id.casefold()
+        for company in self._topic.entities.companies:
+            for term in (company.canonical_name, *company.aliases):
+                if folded == term.casefold():
+                    return company.canonical_name
+        return entity_id
+
     def _query_claims(self, run_id: str) -> list[dict[str, object]]:
         claims: dict[str, dict[str, object]] = {}
         for row in self._store.query_claims_with_evidence(run_id):
@@ -204,7 +219,9 @@ class ReportDataBuilder:
                     "confidence": _as_float_value(
                         _row_value(row, "confidence", 0.0), 0.0
                     ),
-                    "entity_id": _row_value(row, "entity_id", None),
+                    "entity_id": self._canonicalize_entity(
+                        _row_value(row, "entity_id", None)
+                    ),
                     "analysis_type": _row_value(row, "analysis_type", ""),
                     "evidence": [],
                 },

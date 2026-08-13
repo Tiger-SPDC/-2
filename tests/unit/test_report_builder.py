@@ -138,3 +138,35 @@ def test_engine_build_shared_bundle(
     )
     result = engine.run("r1", analysis_claims=1, evidence_coverage=1.0)
     assert result.paths.get(FORMAT_MARKDOWN)
+
+
+def test_canonicalize_entity(make_doc, sample_topic, sample_task) -> None:
+    """entity_id 归一化：别名 → canonical；非跟踪企业/None/空串不变。"""
+    b = _builder(SQLiteStore(":memory:"), sample_topic, sample_task)
+    assert b._canonicalize_entity("特来电新能源") == "特来电"  # alias → canonical
+    assert b._canonicalize_entity("特来电") == "特来电"  # canonical 不变
+    assert b._canonicalize_entity("蔚来") == "蔚来"  # 非跟踪企业信任原值
+    assert b._canonicalize_entity(None) is None
+    assert b._canonicalize_entity("") == ""
+
+
+def test_build_canonicalizes_entity_alias(
+    make_doc, sample_topic, sample_task
+) -> None:
+    """claim 的 entity_id 为跟踪企业别名时，bundle 中归一到 canonical_name。"""
+    store = SQLiteStore(":memory:")
+    store.insert_run("r1", "t1", "tk1", T1)
+    store.insert_document(
+        make_doc(
+            document_id="d1", title="文档一", fetched_at=TODAY,
+            matched_entities=["特来电"],
+        )
+    )
+    store.insert_claim(
+        claim_id="c1", claim_text="特来电新能源市占率上升", claim_type="fact",
+        confidence=0.9, analysis_type="market", topic_id="t1",
+        run_id="r1", entity_id="特来电新能源",
+    )
+    store.insert_claim_evidence("c1", document_id="d1", evidence_role="primary_source")
+    bundle = _builder(store, sample_topic, sample_task).build("r1")
+    assert bundle.claims[0]["entity_id"] == "特来电"

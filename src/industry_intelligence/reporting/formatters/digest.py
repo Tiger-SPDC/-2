@@ -18,6 +18,11 @@ _MAX_CHARS = 600
 # 企业节最小条数：有动态的企业不足此数时才用跟踪企业"暂无动态"补足
 _MIN_ENTITY_LINES = 3
 
+# 各节字数上限（600 字内做预算分配，保证企业节不被前两节挤掉）
+_ONE_LINER_MAX = 50  # 一句话判断
+_TOP5_TITLE_MAX = 30  # 5 件事每条标题
+_ENTITY_TEXT_MAX = 42  # 企业节每条动态文案（不含实体名与标签）
+
 
 def _to_float(value: object, default: float = 0.0) -> float:
     """把 bundle 里可能为 str/int/float/None 的值安全转成 float。"""
@@ -34,6 +39,14 @@ def _as_list(value: object | None) -> list[object]:
     if not isinstance(value, list):
         return []
     return value
+
+
+def _truncate(text: str, max_len: int) -> str:
+    """超长文本截断并加省略号（按字符截断，CJK 友好，结果 ≤ max_len）。"""
+    text = text.strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
 
 
 class DigestFormatter:
@@ -84,7 +97,7 @@ class DigestFormatter:
             reverse=True,
         )
         if facts:
-            return str(facts[0].get("claim_text", "")).strip()
+            return _truncate(str(facts[0].get("claim_text", "")), _ONE_LINER_MAX)
         return ""
 
     def _top5(self, bundle: ReportDataBundle) -> list[str]:
@@ -103,7 +116,11 @@ class DigestFormatter:
             events.sort(
                 key=lambda e: 0 if self._matches_hot(e, hot) else 1
             )  # 稳定排序：命中热点的事件排前，组内仍按日期倒序
-        out = [str(e.get("title", "")) for e in events[:5] if e.get("title")]
+        out = [
+            _truncate(str(e.get("title", "")), _TOP5_TITLE_MAX)
+            for e in events[:5]
+            if e.get("title")
+        ]
         if out:
             return out
         facts = sorted(
@@ -111,7 +128,11 @@ class DigestFormatter:
             key=lambda c: _to_float(c.get("confidence")),
             reverse=True,
         )
-        return [str(c.get("claim_text", "")) for c in facts[:5] if c.get("claim_text")]
+        return [
+            _truncate(str(c.get("claim_text", "")), _TOP5_TITLE_MAX)
+            for c in facts[:5]
+            if c.get("claim_text")
+        ]
 
     def _matches_hot(self, event: dict[str, object], hot: list[str]) -> bool:
         """事件标题/摘要是否命中任一热点短语（casefold 子串匹配）。"""
@@ -185,12 +206,12 @@ class DigestFormatter:
         if claims:
             top = claims[0]
             label = "[事实]" if top.get("claim_type") == CLAIM_TYPE_FACT else "[推断]"
-            return f"{label} {top.get('claim_text', '')}"
+            return f"{label} {_truncate(str(top.get('claim_text', '')), _ENTITY_TEXT_MAX)}"
         events = event_by_entity.get(entity)
         if events:
             title = str(events[0].get("title") or "").strip()
             if title:
-                return f"[事件] {title}"
+                return f"[事件] {_truncate(title, _ENTITY_TEXT_MAX)}"
         return ""
 
     def _quality_level(self, bundle: ReportDataBundle) -> str:

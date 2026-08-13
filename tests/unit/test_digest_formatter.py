@@ -104,16 +104,38 @@ def test_top5_prioritizes_hot_matching_event() -> None:
 
 
 def test_long_text_truncated() -> None:
+    """超长内容在分节内部被截断（省略号），总长 ≤600，报告链接保留。"""
     long_claim = {"claim_id": "c1", "claim_text": "长" * 500,
                   "claim_type": "fact", "confidence": 0.9,
                   "entity_id": "特来电", "analysis_type": "technology"}
     text = DigestFormatter().render(
         _bundle(claims=[long_claim]), report_path="output/r1/report.md"
     )
-    assert "已截断" in text
-    # 总长（含标点）严格不超过上限
+    # 分节截断产生省略号，总长（含标点）严格不超过上限
+    assert "…" in text
     assert len(text) <= _MAX_CHARS
     # 超长时只截正文，报告链接必须保留
+    assert "完整报告：output/r1/report.md" in text
+
+
+def test_fit_fallback_caps_when_sections_all_full() -> None:
+    """各节都接近上限时，整体仍超 600 字则由 _fit 兜底截断（标记「已截断」）。"""
+    events = [
+        {"event_id": f"e{i}", "event_type_id": "t", "title": f"标题{i}" + "字" * 40,
+         "event_date": "2026-01-08", "summary": "s", "confidence": 1.0}
+        for i in range(5)
+    ]
+    claims = [
+        {"claim_id": f"c{i}", "claim_text": f"企业{i}动态" + "字" * 50,
+         "claim_type": "fact", "confidence": 0.9, "entity_id": f"企业{i}",
+         "analysis_type": "technology"}
+        for i in range(5)
+    ]
+    text = DigestFormatter().render(
+        _bundle(events=events, claims=claims), report_path="output/r1/report.md"
+    )
+    assert "已截断" in text
+    assert len(text) <= _MAX_CHARS
     assert "完整报告：output/r1/report.md" in text
 
 

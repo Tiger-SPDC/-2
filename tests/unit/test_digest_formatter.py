@@ -187,6 +187,22 @@ def test_entity_changes_fills_up_to_min_when_sparse() -> None:
     assert section.count("本期暂无动态") == 2
 
 
+def test_entity_claim_full_sentence_not_truncated() -> None:
+    """企业节动态文案：正常长度完整句子（≤90 字）完整保留，不截半句。"""
+    claim_text = (
+        "浙江宁波一充电站发生车辆起火，极氪回应称涉事车辆曾严重碰撞且未官方维修，"
+        "起火原因或与充电桩无关，但事件引发对充电安全的关注。"
+    )
+    claims = [{
+        "claim_id": "c1", "claim_text": claim_text, "claim_type": "fact",
+        "confidence": 0.9, "entity_id": "极氪", "analysis_type": "technology",
+    }]
+    text = DigestFormatter().render(_bundle(claims=claims))
+    section = text.split("三、企业竞争变化")[1]
+    assert claim_text in section  # 完整句子原样保留
+    assert "…" not in section
+
+
 def test_entity_changes_claim_preferred_over_event() -> None:
     """同一实体同时有主张与事件时，优先展示分析主张。"""
     event = {

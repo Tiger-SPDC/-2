@@ -9,6 +9,7 @@
 #   monthly → 指定 day + local_time 运行
 #
 # weekday: Python date.weekday() 约定，0=周一 … 6=周日（仅 cadence=weekly）
+#   ⚠️ 0=周一、1=周二、2=周三、3=周四、4=周五、5=周六、6=周日——不是 1=周一！
 # day: 每月几号运行，1-31（仅 cadence=monthly，超过当月天数则当月跳过）
 # local_time: "HH:MM"，Asia/Shanghai 本地时间（GitHub cron 已换算为 UTC）
 #
@@ -19,7 +20,7 @@ schedules:
   charging_cn_weekly:
     task_id: charging_cn_weekly
     cadence: weekly
-    weekday: 1              # 每周一
+    weekday: 0              # 每周一（0=周一）
     local_time: "08:17"
     depth: standard
     notify: true

@@ -86,9 +86,9 @@ def test_is_due_daily_always() -> None:
 
 
 def test_is_due_weekly_matches_weekday_only() -> None:
-    s = TaskSchedule(task_id="j", cadence="weekly", weekday=1)  # 周一
-    assert is_due(s, date(2026, 8, 11)) is True   # 2026-08-11 是周一
-    assert is_due(s, date(2026, 8, 12)) is False  # 周二
+    s = TaskSchedule(task_id="j", cadence="weekly", weekday=1)  # 周二（0=周一）
+    assert is_due(s, date(2026, 8, 11)) is True   # 2026-08-11 是周二
+    assert is_due(s, date(2026, 8, 12)) is False  # 周三
     assert is_due(s, date(2026, 8, 16)) is False  # 周日
 
 
@@ -166,7 +166,7 @@ def _patched_run_due(
 def test_list_due_respects_state_and_force(tmp_path) -> None:
     cfg = _write_schedules(tmp_path)
     scheduler = Scheduler(config_dir=cfg, project_root=tmp_path, state_path=tmp_path / "s.json")
-    today = date(2026, 8, 11)  # 周一 → weekly(weekday=1) 到期
+    today = date(2026, 8, 11)  # 周二 → weekly(weekday=1) 到期
     assert scheduler.list_due(today) == ["weekly_job"]
     # 标记今天已运行后不再列出
     state = SchedulerState()
@@ -179,7 +179,7 @@ def test_list_due_respects_state_and_force(tmp_path) -> None:
 def test_list_due_only_ignores_cadence(tmp_path) -> None:
     cfg = _write_schedules(tmp_path)
     scheduler = Scheduler(config_dir=cfg, project_root=tmp_path, state_path=tmp_path / "s.json")
-    # 周二（weekly 不到期），但 only 指定 → 仍列出
+    # 周三（weekly 不到期），但 only 指定 → 仍列出
     assert scheduler.list_due(date(2026, 8, 12), only="weekly_job") == ["weekly_job"]
 
 

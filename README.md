@@ -2,6 +2,10 @@
 
 通用产业竞争情报自动化 Agent。
 
+> 🧭 快速上手：
+> - **换关键词 / 换行业？** → [`如何换关键词.md`](如何换关键词.md)
+> - **换电脑 / 重新安装？** → [`换电脑安装指南.md`](换电脑安装指南.md)
+
 ## 1. 项目名称
 
 Industry Intelligence Agent（industry-intelligence-agent）。

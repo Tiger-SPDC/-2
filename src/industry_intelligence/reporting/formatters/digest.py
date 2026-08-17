@@ -5,6 +5,9 @@
 数据全部来自 ReportDataBundle。超长时只截正文，数据质量等级与完整报告链接始终保留。
 v0.7.0a6：顶部新增"本期热点关注"行（LLM 动态热点）；5 件事优先排命中热点的
 事件；企业节内容优先——有实际动态的企业先列，无动态不再占用位置。
+v0.7.0a9：5 件事严格上屏门槛——标题须命中 focus_terms（core）且不命中
+exclude_terms；企业节彻底去掉"本期暂无动态"占位，只上真实动态企业；
+一句话判断与企业节的 claim/事件也按 exclude 剔除（如"手机"类跑偏内容）。
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ from industry_intelligence.reporting.builder import ReportDataBundle
 # 摘要总字数上限（Server酱单条消息限制内，含标点）
 _MAX_CHARS = 600
 
-# 企业节最小条数：有动态的企业不足此数时才用跟踪企业"暂无动态"补足
+# 企业节预算适配时保留的最小条数（有动态不足此数不补足，如实展示）
 _MIN_ENTITY_LINES = 3
 
 # 各节条数上限与最小保留条数：整体超长时"减条数"（5→4→3），而非截断单条
@@ -69,6 +72,34 @@ def _truncate(text: str, max_len: int) -> str:
     if idx >= max_len // 2:
         return text[: idx + 1].rstrip()
     return head.rstrip()[: max_len - 1] + "…"
+
+
+def _matches_any(text: str, terms: list[str]) -> bool:
+    """text 是否命中 terms 中任一（casefold 子串匹配，忽略空词）。"""
+    haystack = (text or "").casefold()
+    return any(t.casefold() in haystack for t in terms if t)
+
+
+def _filter_events(
+    events: list[dict[str, object]],
+    focus_terms: list[str],
+    exclude_terms: list[str],
+) -> list[dict[str, object]]:
+    """严格上屏门槛：标题须命中 focus_terms（若配置）且不命中 exclude_terms。
+
+    focus_terms / exclude_terms 任一为空则该侧不拦截（无词表时向后兼容，不误杀）。
+    """
+    if not focus_terms and not exclude_terms:
+        return list(events)
+    out: list[dict[str, object]] = []
+    for event in events:
+        title = str(event.get("title") or "")
+        if exclude_terms and _matches_any(title, exclude_terms):
+            continue
+        if focus_terms and not _matches_any(title, focus_terms):
+            continue
+        out.append(event)
+    return out
 
 
 class DigestFormatter:
@@ -158,8 +189,16 @@ class DigestFormatter:
     # ------------------------------------------------------------- 各节
 
     def _one_liner(self, bundle: ReportDataBundle) -> str:
+        exclude = bundle.exclude_terms
         facts = sorted(
-            [c for c in bundle.claims if c.get("claim_type") == CLAIM_TYPE_FACT],
+            [
+                c
+                for c in bundle.claims
+                if c.get("claim_type") == CLAIM_TYPE_FACT
+                and not (
+                    exclude and _matches_any(str(c.get("claim_text", "")), exclude)
+                )
+            ],
             key=lambda c: _to_float(c.get("confidence")),
             reverse=True,
         )
@@ -172,10 +211,15 @@ class DigestFormatter:
 
         v0.7.0a6：当次 LLM 热点短语若出现在事件标题/摘要中，该事件排在更前面，
         让推送真正反映热点内容；热点为空时行为与之前完全一致（按日期倒序）。
+        v0.7.0a9：先经 _filter_events 严格过滤——标题须命中 core（focus_terms）
+        且不命中 exclude，剔除车评/导航页等空内容与无关汽车内容。
         """
         hot = [str(t).strip() for t in bundle.hot_topics if str(t).strip()]
+        events = _filter_events(
+            bundle.events, bundle.focus_terms, bundle.exclude_terms
+        )
         events = sorted(
-            bundle.events,
+            events,
             key=lambda e: str(e.get("event_date", "")),
             reverse=True,
         )
@@ -221,46 +265,45 @@ class DigestFormatter:
         return f"本期热点关注：{shown}"
 
     def _entity_changes(self, bundle: ReportDataBundle) -> list[str]:
-        """企业竞争变化：内容优先，任何有实际动态的企业（含非跟踪）都上屏。
+        """企业竞争变化：只上真实动态企业（含非跟踪，动态发现），不占位。
 
-        候选实体 = 跟踪企业 + 主张中出现的企业 + 事件中出现的企业（去重、跟踪优先）。
-        先列有实际动态的（最多 5 条）；有动态的不足 _MIN_ENTITY_LINES 条时才用
-        跟踪企业的"本期暂无动态"补足到 _MIN_ENTITY_LINES 条——避免空节，
-        但不让无内容企业占用有内容企业的位置。
+        候选实体 = 种子（跟踪）企业 + 主张中出现的企业 + 事件中出现的企业（去重、种子优先）。
+        有动态的按序上屏（最多 5 条）；没有动态的企业不出现、也不写"暂无动态"。
+        一条动态都没有时返回空，由 _build_body 输出单行"暂无企业动态"兜底。
+        claim/事件文本命中 exclude 的一并剔除（如"华为手机"类跑偏内容）。
         """
+        exclude = bundle.exclude_terms
         claim_by_entity: dict[str, list[dict[str, object]]] = {}
         for c in bundle.claims:
+            text = str(c.get("claim_text") or "")
+            if exclude and _matches_any(text, exclude):
+                continue
             entity = str(c.get("entity_id") or "")
             if entity:
                 claim_by_entity.setdefault(entity, []).append(c)
         event_by_entity: dict[str, list[dict[str, object]]] = {}
         for ev in bundle.events:
+            title = str(ev.get("title") or "")
+            if exclude and _matches_any(title, exclude):
+                continue
             for eid in _as_list(ev.get("entity_ids")):
                 eid = str(eid)
                 if eid:
                     event_by_entity.setdefault(eid, []).append(ev)
         tracked = [str(c["name"]) for c in bundle.companies if c.get("name")]
-        # 候选实体：跟踪企业优先，其次主张/事件中出现的企业（去重保序）
+        # 候选实体：种子企业优先，其次主张/事件中出现的企业（去重保序）
         candidates: list[str] = []
         for entity in tracked + list(claim_by_entity) + list(event_by_entity):
             if entity and entity not in candidates:
                 candidates.append(entity)
         out: list[str] = []
-        # 1) 有实际动态的实体（跟踪优先，其次数据中出现的企业）
         for entity in candidates:
             if len(out) >= 5:
                 break
             text = self._entity_activity(entity, claim_by_entity, event_by_entity)
             if text:
                 out.append(f"- {entity}：{text}")
-        # 2) 有动态的不足 _MIN_ENTITY_LINES 条时，用跟踪企业"本期暂无动态"补足
-        if len(out) < _MIN_ENTITY_LINES:
-            for entity in tracked:
-                if len(out) >= _MIN_ENTITY_LINES:
-                    break
-                if not self._entity_activity(entity, claim_by_entity, event_by_entity):
-                    out.append(f"- {entity}：本期暂无动态")
-        return out[:5]
+        return out
 
     def _entity_activity(
         self,

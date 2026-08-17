@@ -1,16 +1,19 @@
-# Topic: 中国充电基础设施
+# Topic: 充电与户用储能（新能源）
+# 研究大目标 = 充电桩 + 户用储能设备 +（次级）新能源。
 # 行业长期知识包。schema 见 config/topics/_template.yaml
 
 topic:
   id: charging_pile
-  name: 中国充电基础设施
-  version: "0.1.0"
+  name: 充电与户用储能（新能源）
+  version: "0.2.0"
 
 scope:
   regions:
     - 中国
   default_window_days: 7
 
+# 种子 / 优先关注企业（非硬边界）：检索与上屏均动态发现热门企业，
+# 本列表仅作相关性信号 + 企业节排序优先级；没有动态的企业不上屏、也不占位。
 entities:
   companies:
     - canonical_name: 特来电
@@ -32,34 +35,85 @@ entities:
     - canonical_name: 云快充
       aliases: []
       priority: 2
+    - canonical_name: 华为数字能源
+      aliases: []  # 不设"华为"别名：太宽，会把华为手机/云等非能源业务误归到华为数字能源
+      priority: 1
+    - canonical_name: 阳光电源
+      aliases: []
+      priority: 1
+    - canonical_name: 派能科技
+      aliases: []
+      priority: 2
+    - canonical_name: 固德威
+      aliases: []
+      priority: 2
+    - canonical_name: 比亚迪
+      aliases: []
+      priority: 1
 
 keywords:
+  # core = 研究大目标「必须命中」信号：既做 LLM 热点锚点，也做推送上屏门槛
+  # （推送条目标题必须命中其一，否则视为无关，见 DigestFormatter._filter_events）
   core:
     - 充电桩
     - 充电基础设施
+    - 充电站
+    - 充电网络
+    - 快充
+    - 慢充
+    - 换电
+    - 补能
+    - 光储充
+    - 储能
+    - 户用储能
+    - 家庭储能
+    - 户储
   products:
     - 直流充电桩
     - 交流充电桩
     - 液冷超充
     - 光储充一体化
+    - 户储一体机
+    - 阳台光伏储能
+    - 便携储能电源
+    - 分布式光伏
   market:
     - 保有量
     - 装机量
     - 利用率
     - 运营商
+    - 户储装机
+    - 光伏配储
   technology:
     - 大功率快充
     - 有序充电
     - 车网互动
     - V2G
+    - 钠离子电池
+    - 磷酸铁锂
+    - 逆变器
+    - 并离网切换
   events:
     - 政策
     - 招标
     - 补贴
     - 发布
+  # exclude = 负向过滤词：推送条目标题命中任一即剔除（内容农场/车评类低价值内容）。
+  # 注：纯导航页（维基百科/官网首页）与无充电储能词的汽车内容已被 core 门槛挡下，
+  # 此处只补「标题既含 core 词又是车评/软文」这类漏网的低价值条目。
   exclude:
     - 招聘
     - 二手车
+    - 值得买
+    - 值得等
+    - 真香
+    - 噱头
+    - 怎么选
+    - 一文讲透
+    - FAQ
+    - 手机
+    - 车展
+    - 展会
 
 metrics:
   - station_count

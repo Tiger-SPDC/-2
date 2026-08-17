@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## v0.7.0a9 — 2026-08-17
+
+### 推送覆盖扩展 + 严格上屏门槛 + 企业动态化
+
+- **背景**：用户反馈推送覆盖太窄（只有充电桩）、企业节被固定名单锁死（没内容就列"本期暂无动态"占位）、还混入"大众辅助驾驶""华为-维基百科"等空内容/无关条目。核心纠正：**固定公司名单只是种子/优先级，不是边界**——要的是检索与研究大目标相关的热门新闻/企业。
+- **主题扩展（config 驱动）**：`config/topics/charging_pile.yaml` 大目标扩为「充电 + 户用储能 +（次级）新能源」——`keywords.core` 扩到 13 词（充电桩/充电基础设施/充电站/充电网络/快充/慢充/换电/补能/光储充/储能/户用储能/家庭储能/户储），`products/market/technology` 增补户储与新能源词；种子企业新增户储玩家（华为数字能源/阳光电源/派能科技/固德威/比亚迪），顶部注明"种子/优先关注、非硬边界"。
+- **严格上屏门槛**：`DigestFormatter._top5` 先经新增确定性 helper `_filter_events` 过滤——推送条目标题须命中 `focus_terms`（=core）且不命中 `exclude_terms`（=exclude），车评/导航页等空内容直接剔除；词表为空时退化为不拦截（向后兼容）。
+- **企业节动态化**：`_entity_changes` 删掉"本期暂无动态"占位块，只上真实动态企业（种子优先 + 主张/事件中动态发现，最多 5 条）；一条都没有时才由 `_build_body` 输出"暂无企业动态"单行兜底。
+- **词表进 bundle**：`ReportDataBundle` 新增 `focus_terms` / `exclude_terms`，`ReportDataBuilder.build()` 从 `topic.keywords.core/exclude` 填充（formatter 只拿到 bundle，词表必须随 bundle 传入，零硬编码）。
+- **过滤覆盖企业节与一句话判断**：`_one_liner` / `_entity_changes` 的 claim/事件也按 exclude 剔除（如"华为手机"类跑偏内容）；`华为数字能源` 去掉太宽的"华为"别名避免手机/云业务误归；`exclude` 补"手机/车展/展会"。
+- **测试**：digest 新增严格过滤（命中 core 保留 / 无 core 剔除 / 命中 exclude 剔除）、空词表向后兼容、企业节/一句话判断 exclude 过滤白盒；3 个企业节测试改为"无占位、只上真实动态"；393 测试 / ruff / mypy 干净。
+
 ## v0.7.0a8 — 2026-08-13
 
 ### 推送完整优先：语义截断 + 减条数适配 + 报告链接相对路径

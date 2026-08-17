@@ -17,7 +17,7 @@ scope:
   # 默认时间窗口（天），Task 可覆盖
   default_window_days: 7
 
-# 关注的实体
+# 关注的实体（种子/优先关注，非硬边界：检索与上屏动态发现热门企业）
 entities:
   companies:
     - canonical_name: <企业规范名>
@@ -30,7 +30,7 @@ entities:
 
 # 关键词分组（搜索计划生成依据）
 keywords:
-  core:        # 必填，核心词
+  core:        # 必填，核心词 = 研究大目标「必须命中」信号（热点锚点 + 推送上屏门槛）
     - <核心词>
   products:    # 产品/服务
     - <产品词>
@@ -40,7 +40,7 @@ keywords:
     - <技术词>
   events:      # 事件类
     - <事件词>
-  exclude:     # 排除词
+  exclude:     # 排除词（命中即从推送剔除：内容农场/车评类低价值内容）
     - <排除词>
 
 # 关注的指标（id 参考 config/taxonomies/metrics.yaml）

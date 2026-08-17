@@ -45,6 +45,10 @@ class ReportDataBundle:
     quality: dict[str, float] = field(default_factory=dict)
     # 当次运行 LLM 发现的动态热点话题（v0.7.0a6 起进入报表，摘要顶部展示）
     hot_topics: list[str] = field(default_factory=list)
+    # 推送上屏门槛词表（v0.7.0a9 起）：focus_terms=core（标题必须命中其一），
+    # exclude_terms=exclude（命中即从推送剔除）。均来自 TopicProfile，零硬编码。
+    focus_terms: list[str] = field(default_factory=list)
+    exclude_terms: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
@@ -90,6 +94,8 @@ class ReportDataBuilder:
             period_end=cur_end,
             errors=list(errors or []),
             hot_topics=list(hot_topics or []),
+            focus_terms=list(self._topic.keywords.core),
+            exclude_terms=list(self._topic.keywords.exclude),
         )
         bundle.documents = self._query_documents(cur_start, cur_end)
         bundle.events = self._query_events(cur_start, cur_end)

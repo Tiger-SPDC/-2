@@ -253,6 +253,26 @@ def test_filter_events_empty_terms_is_noop() -> None:
     assert [e["title"] for e in _filter_events(events, [], ["充电站"])] == ["普通汽车新闻"]
 
 
+def test_top5_drops_exhibition_listing() -> None:
+    """展会公告（"充电桩展"）被 exclude 剔除，实打实的充电站投运保留。"""
+    events = [
+        {"event_id": "e1", "event_type_id": "t",
+         "title": "2027年中东沙特自动驾驶及充电桩展EVAS",
+         "event_date": "2026-01-08", "summary": "s", "confidence": 1.0},
+        {"event_id": "e2", "event_type_id": "t",
+         "title": "浙江最大高速重卡充电站在桐庐投运",
+         "event_date": "2026-01-07", "summary": "s", "confidence": 1.0},
+    ]
+    text = DigestFormatter().render(_bundle(
+        events=events,
+        focus_terms=["充电桩", "充电站"],
+        exclude_terms=["充电桩展"],
+    ))
+    section = text.split("二、最重要的")[1].split("三、企业竞争变化")[0]
+    assert "充电桩展EVAS" not in section
+    assert "桐庐投运" in section
+
+
 def test_entity_changes_includes_non_tracked_event_entity() -> None:
     """事件中出现但未跟踪的企业也上屏，无动态企业不占位。"""
     event = {

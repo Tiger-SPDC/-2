@@ -123,12 +123,12 @@ def test_long_text_truncated() -> None:
 def test_reduces_items_not_truncates_when_over_budget() -> None:
     """整体超预算时减条数（而非截半句）：条目完整、条数在 3~5、总长 ≤600。"""
     events = [
-        {"event_id": f"e{i}", "event_type_id": "t", "title": f"标题{i}" + "字" * 40,
+        {"event_id": f"e{i}", "event_type_id": "t", "title": f"标题{i}充电站",
          "event_date": "2026-01-08", "summary": "s", "confidence": 1.0}
         for i in range(5)
     ]
     claims = [
-        {"claim_id": f"c{i}", "claim_text": f"企业{i}动态" + "字" * 50,
+        {"claim_id": f"c{i}", "claim_text": f"企业{i}布局充电网络",
          "claim_type": "fact", "confidence": 0.9, "entity_id": f"企业{i}",
          "analysis_type": "technology"}
         for i in range(5)
@@ -239,6 +239,37 @@ def test_top5_filters_off_topic_and_navigation() -> None:
     assert "五菱星光纯电值得等吗" not in section  # 无 core 词 → 剔除
     assert "华为 - 维基百科" not in section      # 无 core 词 → 剔除
     assert "7千瓦充电桩值得买吗" not in section  # 命中 core 但含 exclude → 剔除
+
+
+def test_top5_uses_briefing_when_present() -> None:
+    """「最重要的几件事」命中 briefings 时用早报句替换原标题。"""
+    events = [
+        {"event_id": "e1", "event_type_id": "t", "title": "浙江最大高速重卡充电站在桐庐投运",
+         "event_date": "2026-08-10", "summary": "s", "confidence": 1.0},
+    ]
+    text = DigestFormatter().render(_bundle(
+        events=events,
+        focus_terms=["充电桩", "充电站"],
+        briefings={"e1": "浙江最大高速重卡充电站在桐庐投运，一小时可充400度电，缓解卡车补能焦虑。"},
+    ))
+    section = text.split("二、最重要的")[1].split("三、企业竞争变化")[0]
+    assert "一小时可充400度电" in section      # 早报内容
+    # 早报以原标题打头是允许的：它仍是主体，只是补上了核心影响
+    assert "浙江最大高速重卡充电站在桐庐投运" in section
+    assert len(text) <= _MAX_CHARS
+
+
+def test_top5_falls_back_to_title_without_briefing() -> None:
+    """无早报时回退原标题，不虚构、不崩。"""
+    events = [
+        {"event_id": "e1", "event_type_id": "t", "title": "某地充电站投用",
+         "event_date": "2026-08-10", "summary": "s", "confidence": 1.0},
+    ]
+    text = DigestFormatter().render(_bundle(
+        events=events, focus_terms=["充电桩", "充电站"], briefings={}
+    ))
+    section = text.split("二、最重要的")[1].split("三、企业竞争变化")[0]
+    assert "某地充电站投用" in section
 
 
 def test_filter_events_empty_terms_is_noop() -> None:

@@ -79,6 +79,8 @@ class ReportConfig:
     markdown: bool = True
     excel: bool = True
     wechat_digest: bool = True
+    # 早报式提炼（v0.7.0a10）：把「最重要的几件事」从标题升维成早报式一句话
+    briefing_enabled: bool = True
 
 
 @dataclass

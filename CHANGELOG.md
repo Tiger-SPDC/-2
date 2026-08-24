@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## v0.7.0a10 — 2026-08-24
+
+### 「最重要的几件事」早报式提炼 + 全篇 ≤500 字
+
+- **背景**：用户反馈「二、最重要的几件事」节只推送标题，要的是像看早报一样读完就知道发生什么。根因（已核实）：demo 的 `rss:demo_news`（Google News 聚合）只带 `summary` = `<a href=...>` 链接 HTML，正文无内容（平均 311 字），formatter 只能降级用标题。
+- **早报提炼**：新增 `intelligence/briefing.py`——`pick_top_events` 复刻 `_top5` 的过滤+排序并加**标题归一化去重**（同新闻跨源仅差来源后缀只保留一条，避免早报重复）；`BriefingGenerator` 复用 HotTopicGenerator 的「provider 注入 + prompt_template + LLMError 降级」范式，把 top 事件正文交给 LLM 提炼成一条 ≤60 字早报；无 provider / LLM 失败 / 无正文一律返回空，formatter 回退原标题（绝不虚构、绝不崩）。
+- **正文回访**：`ReportDataBundle` 增 `event_body`（event_id → 关联文档正文，来自 `event_documents` 关联表）；`ReportEngine._apply_briefings` 对 top 事件取正文，缺失（RSS 链接页）时回访原文（复用 `html_adapter` 的 `fetch_text`+`_extract_html`），只对会进推送的 ≤5 个事件处理，成本可控，不动采集层。
+- **摘要改造**：`DigestFormatter._top5` 改用 `pick_top_events` + 命中 `bundle.briefings` 时用早报句替换标题；`_MAX_CHARS` 600→**500**；企业节最小条数降到 1，避免 500 预算下被 `_fit` 硬截断。
+- **接线**：`config/system.yaml -> report.briefing_enabled`；`config/prompts/briefing.md` 模板；`main.py` 加载模板并给 `ReportEngine` 传 `provider`；`ReportConfig` 增 `briefing_enabled`。
+- **as-你想要的（本地真跑确认）**：全篇 ≤500 字、无硬截断、早报式整句、同新闻不重复、企业节无占位。
+- **测试**：新增 `test_briefing.py`（降级/容错解析/正文回填/标题去重/截断）；digest 补早报替换/回退标题/500 上限；405 测试 / ruff / mypy 干净。
+
 ## v0.7.0a9 — 2026-08-17
 
 ### 推送覆盖扩展 + 严格上屏门槛 + 企业动态化

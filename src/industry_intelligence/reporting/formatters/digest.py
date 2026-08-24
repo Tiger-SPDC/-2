@@ -13,13 +13,15 @@ exclude_terms；企业节彻底去掉"本期暂无动态"占位，只上真实�
 from __future__ import annotations
 
 from industry_intelligence.analysis.models import CLAIM_TYPE_FACT
+from industry_intelligence.intelligence.briefing import pick_top_events
 from industry_intelligence.reporting.builder import ReportDataBundle
 
-# 摘要总字数上限（Server酱单条消息限制内，含标点）
-_MAX_CHARS = 600
+# 摘要总字数上限（Server酱单条消息限制内，含标点）——全篇 ≤500，用户早报式要求
+_MAX_CHARS = 500
 
-# 企业节预算适配时保留的最小条数（有动态不足此数不补足，如实展示）
-_MIN_ENTITY_LINES = 3
+# 企业节预算适配时保留的最小条数（有动态不足此数不补足，如实展示）。
+# 500 字预算下早报每条信息量大，企业节能压到 1 条完整句子，避免硬截断。
+_MIN_ENTITY_LINES = 1
 
 # 各节条数上限与最小保留条数：整体超长时"减条数"（5→4→3），而非截断单条
 _MAX_ITEMS = 5
@@ -209,29 +211,24 @@ class DigestFormatter:
     def _top5(self, bundle: ReportDataBundle) -> list[str]:
         """按事件日期取最近 5 条，命中本期热点的事件优先；无事件时取高置信度事实。
 
-        v0.7.0a6：当次 LLM 热点短语若出现在事件标题/摘要中，该事件排在更前面，
-        让推送真正反映热点内容；热点为空时行为与之前完全一致（按日期倒序）。
+        v0.7.0a6：当次 LLM 热点短语若出现在事件标题/摘要中，该事件排在更前面；
         v0.7.0a9：先经 _filter_events 严格过滤——标题须命中 core（focus_terms）
         且不命中 exclude，剔除车评/导航页等空内容与无关汽车内容。
+        v0.7.0a10：对命中 bundle.briefings 的事件，用 LLM 早报句替换原标题——
+        「最重要的事」不再只推标题，而是像早报一样讲清发生了什么。
+        选择逻辑收敛到 intelligence/briefing.pick_top_events（与引擎共用同一套过滤/排序）。
         """
-        hot = [str(t).strip() for t in bundle.hot_topics if str(t).strip()]
-        events = _filter_events(
-            bundle.events, bundle.focus_terms, bundle.exclude_terms
-        )
-        events = sorted(
-            events,
-            key=lambda e: str(e.get("event_date", "")),
-            reverse=True,
-        )
-        if hot:
-            events.sort(
-                key=lambda e: 0 if self._matches_hot(e, hot) else 1
-            )  # 稳定排序：命中热点的事件排前，组内仍按日期倒序
-        out = [
-            _truncate(str(e.get("title", "")), _TOP5_TITLE_MAX)
-            for e in events[:5]
-            if e.get("title")
-        ]
+        briefings = bundle.briefings or {}
+        out: list[str] = []
+        for e in pick_top_events(bundle):
+            title = str(e.get("title") or "")
+            if not title:
+                continue
+            eid = str(e.get("event_id") or "")
+            text = briefings.get(eid) or title
+            out.append(_truncate(text, _TOP5_TITLE_MAX))
+            if len(out) >= 5:
+                break
         if out:
             return out
         facts = sorted(

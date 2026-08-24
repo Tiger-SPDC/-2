@@ -49,6 +49,10 @@ class ReportDataBundle:
     # exclude_terms=exclude（命中即从推送剔除）。均来自 TopicProfile，零硬编码。
     focus_terms: list[str] = field(default_factory=list)
     exclude_terms: list[str] = field(default_factory=list)
+    # 早报提炼（v0.7.0a10）：event_id -> 关联文档正文（供回访/提炼用）
+    event_body: dict[str, list[dict[str, object]]] = field(default_factory=dict)
+    # 早报提炼结果：event_id -> 一条简洁中文早报（LLM 生成，空 dict 表示未提炼）
+    briefings: dict[str, str] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
 
@@ -99,6 +103,9 @@ class ReportDataBuilder:
         )
         bundle.documents = self._query_documents(cur_start, cur_end)
         bundle.events = self._query_events(cur_start, cur_end)
+        bundle.event_body = self._store.query_event_documents_map(
+            self._topic.id, cur_start, cur_end
+        )
         bundle.observations = self._query_observations()
         bundle.companies = self._build_companies()
         bundle.claims = self._query_claims(run_id)

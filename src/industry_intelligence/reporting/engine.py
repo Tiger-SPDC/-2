@@ -11,7 +11,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from industry_intelligence.config.models import ReportConfig, TaskConfig, TopicProfile
-from industry_intelligence.reporting.builder import ReportDataBuilder
+from industry_intelligence.intelligence.briefing import (
+    BriefingGenerator,
+    fetch_event_bodies,
+    pick_top_events,
+)
+from industry_intelligence.llm.provider import LLMProvider
+from industry_intelligence.reporting.builder import ReportDataBuilder, ReportDataBundle
 from industry_intelligence.reporting.formatters.digest import DigestFormatter
 from industry_intelligence.reporting.formatters.excel import ExcelFormatter
 from industry_intelligence.reporting.formatters.markdown import MarkdownFormatter
@@ -58,12 +64,18 @@ class ReportEngine:
         task: TaskConfig,
         report_config: ReportConfig | None = None,
         output_dir: str | Path = "output/reports",
+        provider: LLMProvider | None = None,
+        briefing_enabled: bool = False,
+        briefing_prompt: str = "",
     ) -> None:
         self._store = sqlite_store
         self._topic = topic
         self._task = task
         self._config = report_config or ReportConfig()
         self._output_dir = Path(output_dir)
+        self._provider = provider
+        self._briefing_enabled = briefing_enabled
+        self._briefing_prompt = briefing_prompt
 
     def run(
         self,
@@ -120,6 +132,11 @@ class ReportEngine:
 
         if self._config.wechat_digest:
             try:
+                self._apply_briefings(bundle)
+            except Exception as exc:  # noqa: BLE001 — 提炼失败不中断推送，回退标题
+                result.errors.append(f"event briefing: {exc}")
+                bundle.briefings = {}
+            try:
                 md_path = result.paths.get(FORMAT_MARKDOWN, "")
                 digest = DigestFormatter().render(
                     bundle, report_path=_repo_relative(md_path)
@@ -133,3 +150,20 @@ class ReportEngine:
 
         result.errors.extend(bundle.errors)
         return result
+
+    def _apply_briefings(self, bundle: ReportDataBundle) -> None:
+        """对 top 事件回访正文 + LLM 提炼，写入 bundle.briefings。
+
+        enabled 且 provider 存在时才执行；无正文 / LLM 失败由生成器降级返回空，
+        formatter 回退用原标题。结果写入 bundle.briefings（event_id -> 早报句）。
+        """
+        if not self._briefing_enabled or self._provider is None:
+            return
+        top = pick_top_events(bundle)
+        if not top:
+            return
+        bodies = fetch_event_bodies(bundle)
+        gen = BriefingGenerator(
+            provider=self._provider, prompt_template=self._briefing_prompt
+        )
+        bundle.briefings = gen.generate(top, bodies)

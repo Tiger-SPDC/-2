@@ -592,6 +592,40 @@ class SQLiteStore:
             (topic_id, start_date, end_date),
         ).fetchall()
 
+    def query_event_documents_map(
+        self,
+        topic_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> dict[str, list[dict[str, object]]]:
+        """按事件分组返回关联文档（标题/URL/正文）。
+
+        供推送早报提炼：事件 → 其关联文档的正文与原文链接。仅取当前主题事件范围内
+        的事件，正文字段直接来自 documents.content_text（websearch 源较完整，
+        RSS 源是链接 HTML 时由上层回访）。返回 {event_id: [doc dict, ...]}。
+        """
+        sql = (
+            "SELECT ed.event_id AS event_id,"
+            "      d.title AS doc_title, d.canonical_url AS url,"
+            "      d.content_text AS content_text"
+            " FROM event_documents ed"
+            " JOIN events e ON e.event_id = ed.event_id"
+            " JOIN documents d ON d.document_id = ed.document_id"
+            " WHERE e.topic_id = ? AND e.event_date >= ? AND e.event_date <= ?"
+            " ORDER BY ed.event_id"
+        )
+        out: dict[str, list[dict[str, object]]] = {}
+        for row in self._conn.execute(sql, (topic_id, start_date, end_date)).fetchall():
+            eid = str(row["event_id"])
+            out.setdefault(eid, []).append(
+                {
+                    "title": row["doc_title"] or "",
+                    "canonical_url": row["url"] or "",
+                    "content_text": row["content_text"] or "",
+                }
+            )
+        return out
+
     def purge_irrelevant_documents(self, terms: list[str]) -> int:
         """删除来源为 websearch 且不命中相关性词条的文档及其级联数据。
 

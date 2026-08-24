@@ -38,7 +38,15 @@ def _bundle(**overrides) -> ReportDataBundle:
         },
     )
     kwargs.update(overrides)
-    return ReportDataBundle(**kwargs)
+    bundle = ReportDataBundle(**kwargs)
+    # 企业节现在完全动态（_entity_changes 只读 bundle.discovered_companies）：
+    # 未显式传入时，用 discover_companies 从 claims/events 确定性生成（无 provider），
+    # 让测试里的「企业节上屏」贴近真实运行行为。
+    if not bundle.discovered_companies:
+        from industry_intelligence.intelligence.company_discovery import discover_companies
+
+        bundle.discovered_companies = discover_companies(bundle, provider=None)
+    return bundle
 
 
 def test_render_contains_three_sections() -> None:

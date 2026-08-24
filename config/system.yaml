@@ -55,6 +55,9 @@ report:
   # 早报式提炼（v0.7.0a10）：把「最重要的几件事」从标题升维成早报式一句话。
   # 需要 LLM（provider 存在）才算开启；关闭或失败时回退原标题。
   briefing_enabled: true
+  # 企业节完全动态发现企业（v0.7.0a11）：去固定种子。LLM 从新闻提取企业 + 确定性关联度排序。
+  # 无 provider / LLM 失败时降级只用 claims/events 内既有企业（仍能发现非种子）。
+  company_discovery_enabled: true
 
 # 质量审查（Phase 4 启用）
 # enabled：是否运行 Review Agent（7 项检查：数字可追溯/日期/推断≠事实/活动度≠销量/证据/矛盾/措辞）

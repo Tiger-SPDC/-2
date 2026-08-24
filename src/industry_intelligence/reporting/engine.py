@@ -16,6 +16,7 @@ from industry_intelligence.intelligence.briefing import (
     fetch_event_bodies,
     pick_top_events,
 )
+from industry_intelligence.intelligence.company_discovery import discover_companies
 from industry_intelligence.llm.provider import LLMProvider
 from industry_intelligence.reporting.builder import ReportDataBuilder, ReportDataBundle
 from industry_intelligence.reporting.formatters.digest import DigestFormatter
@@ -67,6 +68,8 @@ class ReportEngine:
         provider: LLMProvider | None = None,
         briefing_enabled: bool = False,
         briefing_prompt: str = "",
+        company_discovery_enabled: bool = False,
+        company_prompt: str = "",
     ) -> None:
         self._store = sqlite_store
         self._topic = topic
@@ -76,6 +79,8 @@ class ReportEngine:
         self._provider = provider
         self._briefing_enabled = briefing_enabled
         self._briefing_prompt = briefing_prompt
+        self._company_discovery_enabled = company_discovery_enabled
+        self._company_prompt = company_prompt
 
     def run(
         self,
@@ -137,6 +142,11 @@ class ReportEngine:
                 result.errors.append(f"event briefing: {exc}")
                 bundle.briefings = {}
             try:
+                self._apply_company_discovery(bundle)
+            except Exception as exc:  # noqa: BLE001 — 企业发现失败降级，回退空
+                result.errors.append(f"company discovery: {exc}")
+                bundle.discovered_companies = []
+            try:
                 md_path = result.paths.get(FORMAT_MARKDOWN, "")
                 digest = DigestFormatter().render(
                     bundle, report_path=_repo_relative(md_path)
@@ -167,3 +177,19 @@ class ReportEngine:
             provider=self._provider, prompt_template=self._briefing_prompt
         )
         bundle.briefings = gen.generate(top, bodies)
+
+    def _apply_company_discovery(self, bundle: ReportDataBundle) -> None:
+        """完全动态发现企业 + 关联度排序，写入 bundle.discovered_companies。
+
+        enabled 且 provider 存在时才做 LLM 提取；无 provider / LLM 失败降级只用
+        claims/events 内企业（仍能发现非种子）。结果供 digest 企业节上屏。
+        """
+        if not self._company_discovery_enabled:
+            return
+        # provider 可为 None：此时 LLM 提取降级为空，仍用 claims/events 内既有企业做
+        # 确定性关联度排序，企业节不空。
+        bundle.discovered_companies = discover_companies(
+            bundle,
+            provider=self._provider,
+            prompt_template=self._company_prompt,
+        )

@@ -441,6 +441,8 @@ def _cmd_run_phase2(
             provider=provider,
             briefing_enabled=sys_cfg.report.briefing_enabled,
             briefing_prompt=load_prompt("briefing", CONFIG_DIR),
+            company_discovery_enabled=sys_cfg.report.company_discovery_enabled,
+            company_prompt=load_prompt("company_discovery", CONFIG_DIR),
         )
         notification_adapter = ServerChanAdapter(
             sendkey=os.environ.get(sys_cfg.notification.serverchan_key_env),

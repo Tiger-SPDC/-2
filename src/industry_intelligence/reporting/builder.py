@@ -53,6 +53,9 @@ class ReportDataBundle:
     event_body: dict[str, list[dict[str, object]]] = field(default_factory=dict)
     # 早报提炼结果：event_id -> 一条简洁中文早报（LLM 生成，空 dict 表示未提炼）
     briefings: dict[str, str] = field(default_factory=dict)
+    # 动态发现的企业池（v0.7.0a11）：完全动态发现 + 关联度排序，供企业节上屏。
+    # 元素含 name / score / activity_text；空列表时企业节回退为空/占位去除。
+    discovered_companies: list[dict[str, object]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 

@@ -81,6 +81,8 @@ class ReportConfig:
     wechat_digest: bool = True
     # 早报式提炼（v0.7.0a10）：把「最重要的几件事」从标题升维成早报式一句话
     briefing_enabled: bool = True
+    # 企业节完全动态发现企业（v0.7.0a11）：去固定种子
+    company_discovery_enabled: bool = True
 
 
 @dataclass

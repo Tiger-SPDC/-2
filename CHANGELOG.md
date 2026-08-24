@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## v0.7.0a11 — 2026-08-24
+
+### 企业节「完全动态发现企业」+ 关联度排序（去固定种子）
+
+- **背景**：用户反馈「三、企业竞争变化」每次都是固定几家（特来电/国家电网/星星充电），观感局限。要求**不要固定企业种子**（固定名单限制思考、去固定感），找什么企业取决于「这段新闻的关联程度」。
+- **关联程度定义（用户确认）**：被报道就算（官方发布 + 媒体采访/报道/引用都算），不区分来源；排序按「出现次数 × 命中大目标词」等加权。
+- **完全动态发现**：新增 `intelligence/company_discovery.py`——`CompanyDiscoverer`（LLM 从本段命中的新闻标题/正文提取被报道企业，不限种子，复用 HotTopicGenerator 的 provider 注入 + 降级范式）+ `CompanyScorer`（确定性关联度打分：活跃度×出现次数 + 内容相关度×命中core/热点 + 新鲜度×日期近 + 信息量×claim有证据，权重可配）+ `discover_companies`（合并 claims.entity_id ∪ events.entity_ids ∪ LLM 提取，去重排序取 top 5）。
+- **去固定感**：`DigestFormatter._entity_changes` 重写——不再把配置里的种子企业排最前，候选改为 `bundle.discovered_companies`，完全动态、按关联度排序上屏；无动态不上屏、不占位；文案命中 exclude 剔除。`_entity_activity` 由 company 发现模块的 `_attach_activity` 取代。
+- **预算让位**：500 字预算下优先保企业节（动态企业多上几家），需要压缩时先减「二、最重要的」早报条数（`_fit_sections` 遍历顺序调整：外层企业节、内层 top 递减）。
+- **接线**：`ReportDataBundle` 增 `discovered_companies`；`system.yaml report.company_discovery_enabled`；`config/prompts/company_discovery.md` 模板；`main.py` 传参；`ReportConfig` 增字段。无 provider / LLM 失败降级只用 claims/events 内既有企业（仍能发现非种子），不崩、不虚构。
+- **测试**：新增 `test_company_discovery.py`（LLM schema/降级/打分排序/去种子/模板加载）；digest 企业节测试改为走 `discovered_companies`。416 测试 / ruff / mypy 干净。本地真跑确认企业节出现非种子企业（比亚迪、铁塔能源、上汽、小鹏），不再固定那几家。
+
 ## v0.7.0a10 — 2026-08-24
 
 ### 「最重要的几件事」早报式提炼 + 全篇 ≤500 字

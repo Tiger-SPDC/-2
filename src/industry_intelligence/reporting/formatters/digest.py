@@ -168,23 +168,29 @@ class DigestFormatter:
         仍超时才由 _fit 兜底截正文。
         """
         budget = _MAX_CHARS - len(footer)
+        # 用户偏好（v0.7.0a11）：500 字预算下优先保企业节（动态企业多上几家），
+        # 需要压缩时先减「二、最重要的」早报条数。故外层固定企业节、内层递减 top：
+        # 对每个企业节条数，先从最多的 top 尝试，超预算就逐级减 top；top 减完仍超
+        # 才降企业节。top opts 从少到多（让 top 优先被压缩），ent opts 从多到少。
         top_opts = (
-            list(range(min(_MAX_ITEMS, len(top5)), _MIN_TOP_ITEMS - 1, -1))
-            or [len(top5)]
+            list(range(_MIN_TOP_ITEMS, min(_MAX_ITEMS, len(top5)) + 1))
+            or [_MIN_TOP_ITEMS]
         )
         ent_opts = (
             list(range(min(_MAX_ITEMS, len(entity_lines)), _MIN_ENTITY_LINES - 1, -1))
-            or [len(entity_lines)]
+            or [max(len(entity_lines), _MIN_ENTITY_LINES)]
         )
-        for n_top in top_opts:
-            for n_ent in ent_opts:
+        for n_ent in ent_opts:
+            if n_ent < 1:
+                continue
+            for n_top in top_opts:
                 body = self._build_body(
                     bundle, hot_line, one_liner, top5[:n_top], entity_lines[:n_ent]
                 )
                 if len(body) <= budget:
                     return body + footer
         body = self._build_body(
-            bundle, hot_line, one_liner, top5[:3], entity_lines[:3]
+            bundle, hot_line, one_liner, top5[:3], entity_lines[: max(len(entity_lines), 1)]
         )
         return self._fit(body, footer)
 
@@ -262,64 +268,29 @@ class DigestFormatter:
         return f"本期热点关注：{shown}"
 
     def _entity_changes(self, bundle: ReportDataBundle) -> list[str]:
-        """企业竞争变化：只上真实动态企业（含非跟踪，动态发现），不占位。
+        """企业竞争变化：完全动态发现企业（去固定种子），按关联度排序上屏。
 
-        候选实体 = 种子（跟踪）企业 + 主张中出现的企业 + 事件中出现的企业（去重、种子优先）。
+        v0.7.0a11：不再把配置里写死的种子企业排最前——候选来自 intelligence/
+        company_discovery.discover_companies（claims.entity_id + events.entity_ids +
+        LLM 从新闻提取的企业，去重），按关联度打分排序。完全动态、去固定感。
         有动态的按序上屏（最多 5 条）；没有动态的企业不出现、也不写"暂无动态"。
         一条动态都没有时返回空，由 _build_body 输出单行"暂无企业动态"兜底。
-        claim/事件文本命中 exclude 的一并剔除（如"华为手机"类跑偏内容）。
+        文案命中 exclude 的一并剔除（如"华为手机"类跑偏内容）。
         """
         exclude = bundle.exclude_terms
-        claim_by_entity: dict[str, list[dict[str, object]]] = {}
-        for c in bundle.claims:
-            text = str(c.get("claim_text") or "")
-            if exclude and _matches_any(text, exclude):
-                continue
-            entity = str(c.get("entity_id") or "")
-            if entity:
-                claim_by_entity.setdefault(entity, []).append(c)
-        event_by_entity: dict[str, list[dict[str, object]]] = {}
-        for ev in bundle.events:
-            title = str(ev.get("title") or "")
-            if exclude and _matches_any(title, exclude):
-                continue
-            for eid in _as_list(ev.get("entity_ids")):
-                eid = str(eid)
-                if eid:
-                    event_by_entity.setdefault(eid, []).append(ev)
-        tracked = [str(c["name"]) for c in bundle.companies if c.get("name")]
-        # 候选实体：种子企业优先，其次主张/事件中出现的企业（去重保序）
-        candidates: list[str] = []
-        for entity in tracked + list(claim_by_entity) + list(event_by_entity):
-            if entity and entity not in candidates:
-                candidates.append(entity)
+        discovered = bundle.discovered_companies or []
         out: list[str] = []
-        for entity in candidates:
+        for item in discovered:
             if len(out) >= 5:
                 break
-            text = self._entity_activity(entity, claim_by_entity, event_by_entity)
-            if text:
-                out.append(f"- {entity}：{text}")
+            entity = str(item.get("name") or "")
+            activity = str(item.get("activity_text") or "").strip()
+            if not entity or not activity:
+                continue
+            if exclude and _matches_any(activity, exclude):
+                continue
+            out.append(f"- {entity}：{activity}")
         return out
-
-    def _entity_activity(
-        self,
-        entity: str,
-        claim_by_entity: dict[str, list[dict[str, object]]],
-        event_by_entity: dict[str, list[dict[str, object]]],
-    ) -> str:
-        """实体的动态文案：优先分析主张，其次最新事件标题。"""
-        claims = claim_by_entity.get(entity)
-        if claims:
-            top = claims[0]
-            label = "[事实]" if top.get("claim_type") == CLAIM_TYPE_FACT else "[推断]"
-            return f"{label} {_truncate(str(top.get('claim_text', '')), _ENTITY_TEXT_MAX)}"
-        events = event_by_entity.get(entity)
-        if events:
-            title = str(events[0].get("title") or "").strip()
-            if title:
-                return f"[事件] {_truncate(title, _ENTITY_TEXT_MAX)}"
-        return ""
 
     def _quality_level(self, bundle: ReportDataBundle) -> str:
         coverage = float(bundle.quality.get("evidence_coverage", 0.0))

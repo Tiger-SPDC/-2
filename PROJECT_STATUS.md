@@ -1,9 +1,9 @@
 # PROJECT_STATUS
 
 - **Project:** Industry Intelligence Agent
-- **Version:** v0.7.0a10
+- **Version:** v0.7.0a11
 - **Date:** 2026-08-24
-- **Current phase:** Phase 5（GitHub 全自动运行已实现，本地 + GitHub Actions 真实端到端验收全部通过——含微信推送；v0.7.0a1 新增真实网页搜索——Bing SERP 爬取 + 官方站点 site: 限定；v0.7.0a2 微信摘要精简为 3 节 + ≤600 字；v0.7.0a3 推送相关性门控——垃圾内容不进摘要，企业节稳定 5 条；v0.7.0a4 推送内容日志——每次推送落 data/push_log.jsonl；v0.7.0a5 LLM 动态热点发现——大方向词只是锚点，检索以 LLM 发现的当前行业热点为主、固定三族查询降级兜底；v0.7.0a6 推送反映 LLM 热点——摘要顶部"本期热点关注"行 + 5 件事热点优先 + 企业节内容优先、无内容企业不再占用位置；v0.7.0a7 推送质量——放宽分析 prompt 允许标注未跟踪企业、报告层实体归一化、分节预算保证企业节不被截断；v0.7.0a8 推送完整优先——语义截断不切半句 + 减条数（5→3，条目控制在 3~5）+ 报告链接相对路径；v0.7.0a9 推送覆盖扩展 + 严格过滤——主题扩为充电+户储+新能源、固定公司改种子非边界、推送条目标题须命中 core 且不命中 exclude、企业节去掉"暂无动态"占位只上真实动态企业；v0.7.0a10 推送早报式提炼——「最重要的几件事」由 LLM 基于回访正文提炼成 ≤60 字早报句替换标题、同新闻跨源去重、全篇 ≤500 字、无硬截断）
+- **Current phase:** Phase 5（GitHub 全自动运行已实现，本地 + GitHub Actions 真实端到端验收全部通过——含微信推送；v0.7.0a1 新增真实网页搜索——Bing SERP 爬取 + 官方站点 site: 限定；v0.7.0a2 微信摘要精简为 3 节 + ≤600 字；v0.7.0a3 推送相关性门控——垃圾内容不进摘要，企业节稳定 5 条；v0.7.0a4 推送内容日志——每次推送落 data/push_log.jsonl；v0.7.0a5 LLM 动态热点发现——大方向词只是锚点，检索以 LLM 发现的当前行业热点为主、固定三族查询降级兜底；v0.7.0a6 推送反映 LLM 热点——摘要顶部"本期热点关注"行 + 5 件事热点优先 + 企业节内容优先、无内容企业不再占用位置；v0.7.0a7 推送质量——放宽分析 prompt 允许标注未跟踪企业、报告层实体归一化、分节预算保证企业节不被截断；v0.7.0a8 推送完整优先——语义截断不切半句 + 减条数（5→3，条目控制在 3~5）+ 报告链接相对路径；v0.7.0a9 推送覆盖扩展 + 严格过滤——主题扩为充电+户储+新能源、固定公司改种子非边界、推送条目标题须命中 core 且不命中 exclude、企业节去掉"暂无动态"占位只上真实动态企业；v0.7.0a10 推送早报式提炼——「最重要的几件事」由 LLM 基于回访正文提炼成 ≤60 字早报句替换标题、同新闻跨源去重、全篇 ≤500 字、无硬截断；v0.7.0a11 企业节完全动态——去固定种子、LLM 从新闻发现企业 + 确定性关联度排序、500 字下优先保企业节）
 - **Code implementation:** 配置加载 / 搜索计划（含官方站点查询族）/ RSS·HTML·WebSearch·Composite 采集（Bing SERP 爬取 + 权威官方域名 site: 限定，无 API Key）/ 去重 / JSONL 存储 / LLM 结构化分析（实体·事件·观测）/ SQLite 查询层 / Phase 3 竞争情报分析（4 分析师 + 内部指数 + 历史比较 + Claim 证据链）/ Phase 4（Review Agent 7 项检查 + Markdown·Excel·微信摘要报告 + 数据质量章节 + Server酱通知）/ Phase 5（通用调度器 + 4 个 GitHub Actions 工作流 + auto-commit + Artifact + 失败通知 + retry）/ CLI
 - **Repository safety boundary:** Required
 - **Preferred local Python:** 3.12 (3.11+ acceptable)
@@ -78,6 +78,7 @@
 - [x] v0.7.0a8：推送完整优先（`DigestFormatter` 语义截断——超长优先截到句号不切半句；减条数适配——整体超 600 字先减 5→4→3 条、条目控制在 3~5 而非截断单条；`ReportEngine._repo_relative` 报告链接相对路径，省掉 runner 绝对路径 ~60 字）；388 测试 + ruff/mypy 干净
 - [x] v0.7.0a9：推送覆盖扩展 + 严格过滤（`charging_pile` 主题扩为充电+户储+新能源——core 扩 13 词、增补户储/新能源词、种子企业加户储玩家；`DigestFormatter._top5` 经 `_filter_events` 严格上屏门槛——标题须命中 core 且不命中 exclude；`_entity_changes` 删"本期暂无动态"占位、只上真实动态企业，固定公司改种子非边界；`ReportDataBundle` 新增 `focus_terms`/`exclude_terms` 随 bundle 传词表，零硬编码；企业节/一句话判断也按 exclude 过滤、华为数字能源收窄别名、exclude 补手机/车展/展会）
 - [x] v0.7.0a10：推送早报式提炼（`intelligence/briefing.py`——`pick_top_events` 复用 `_top5` 过滤+排序并加标题归一化去重（同新闻跨源只保留一条）、`BriefingGenerator` 复用 HotTopicGenerator 的 provider 注入 + 降级范式，把 top 事件正文交给 LLM 提炼成 ≤60 字早报、失败回退标题；`ReportDataBundle` 增 `event_body`、`ReportEngine._apply_briefings` 对 top 事件回访正文（复用 html_adapter，只处理 ≤5 个事件）；`DigestFormatter._top5` 命中 `briefings` 用早报替换标题、`_MAX_CHARS` 600→500、企业节最小 1 条避免硬截断；`system.yaml report.briefing_enabled` + `config/prompts/briefing.md` + `main.py` 传 provider；405 测试 / ruff / mypy 干净）
+- [x] v0.7.0a11：企业节完全动态发现 + 去固定种子（`intelligence/company_discovery.py`——`CompanyDiscoverer`（LLM 从本段命中的新闻提取被报道企业，不限种子，provider 注入 + 降级）、`CompanyScorer`（确定性关联度打分：活跃度×次数 + 内容相关度×命中core/热点 + 新鲜度×日期近 + 信息量×claim有证据，权重可配）、`discover_companies`（合并 claims.entity_id ∪ events.entity_ids ∪ LLM 提取，去重排序取 top5）；`DigestFormatter._entity_changes` 重写——不再种子优先，候选改为 `bundle.discovered_companies`，完全动态、按关联度排序、无动态不占位；500 字预算下优先保企业节、需压缩先减「最重要的」早报条数（`_fit_sections` 遍历顺序调整）；`system.yaml report.company_discovery_enabled` + `config/prompts/company_discovery.md` + `main.py` 传参；416 测试 / ruff / mypy 干净，本地真跑确认企业节出现非种子企业（比亚迪/铁塔能源/上汽/小鹏），不再固定那几家）
 
 ## 已完成（GitHub 验收）
 

@@ -4,6 +4,7 @@
 2. `01_Create-Isolated-Venv.ps1`：只在项目目录创建 `.venv`。
 3. `03_Verify-Project-Boundary.ps1`：检查项目约束文件是否齐全。
 4. `02_Start-Claude-DeepSeek-Flash.ps1`：等 ChatGPT 发出正式 Phase 0 指令时使用。
+5. `04_One-Click-Deploy.ps1`：本地环境 + GitHub Actions + Secrets + 首次验收的一键部署入口。
 
 如果 PowerShell 因执行策略阻止脚本，不要修改系统级执行策略。可以仅对当前进程临时允许：
 

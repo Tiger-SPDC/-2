@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## v0.7.0a12 — 2026-08-25
+
+### Windows 一键部署 + Actions 输入安全加固
+
+- **一键部署入口**：新增根目录 `一键部署.cmd` 与 `scripts/04_One-Click-Deploy.ps1`，串联隔离环境、依赖安装、配置校验、pytest/ruff/mypy、GitHub 授权、私有仓库创建/复用、推送、Actions 权限、Secrets 和首次 Manual Run。
+- **可重复执行**：已有 `.venv`、Git 仓库、远端、Secrets 均安全复用；失败后修正问题直接重跑，不重复创建；支持 `-LocalOnly`、`-SkipTests`、`-SkipFirstRun`、`-WaitForFirstRun`、`-NonInteractive`。
+- **密钥边界**：DeepSeek / Server酱密钥隐藏输入，经标准输入交给 GitHub CLI，不写入文件或命令参数；提交前扫描常见明文 Key；GitHub CLI 采用项目内便携版。
+- **工作流加固**：`manual_run.yml` 不再把可控输入直接拼进 shell 命令，改为环境变量、`task_id` 白名单和 Bash 参数数组；调度器工作流同步改为安全数组传参。
+- **验证**：Windows 本地一键链路通过；416 pytest + ruff + mypy 全部通过。
+
 ## v0.7.0a11 — 2026-08-24
 
 ### 企业节「完全动态发现企业」+ 关联度排序（去固定种子）

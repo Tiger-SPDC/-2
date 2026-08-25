@@ -48,10 +48,13 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
           TZ: Asia/Shanghai
+          INPUT_FORCE: ${{ inputs.force }}
+          INPUT_RETRY: ${{ inputs.retry || '1' }}
         run: |
-          EXTRA=""
-          if [ "${{ inputs.force }}" = "true" ]; then EXTRA="--force"; fi
-          python scheduler.py --run-due --retry "${{ inputs.retry || '1' }}" $EXTRA
+          set -euo pipefail
+          EXTRA=()
+          if [ "$INPUT_FORCE" = "true" ]; then EXTRA+=(--force); fi
+          python scheduler.py --run-due --retry "$INPUT_RETRY" "${EXTRA[@]}"
 
       - name: Commit data and reports
         run: |

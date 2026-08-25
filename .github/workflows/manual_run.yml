@@ -75,22 +75,43 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
           TZ: Asia/Shanghai
+          INPUT_TASK_ID: ${{ inputs.task_id }}
+          INPUT_TOPIC_ID: ${{ inputs.topic_id }}
+          INPUT_DAYS: ${{ inputs.days }}
+          INPUT_REGIONS: ${{ inputs.regions }}
+          INPUT_COMPANIES: ${{ inputs.companies }}
+          INPUT_FOCUS: ${{ inputs.focus }}
+          INPUT_DEPTH: ${{ inputs.depth }}
+          INPUT_NOTIFY: ${{ inputs.notify }}
         run: |
           set -euo pipefail
-          TOPIC="${{ inputs.topic_id }}"
-          if [ -z "$TOPIC" ]; then
-            TOPIC="$(python -c \
-              "import yaml; d=yaml.safe_load(open('config/tasks/${{ inputs.task_id }}.yaml', encoding='utf-8')); print(d['task']['topic_id'])")"
+          if [[ ! "$INPUT_TASK_ID" =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo "Invalid task_id: use letters, numbers, underscore, or hyphen only" >&2
+            exit 2
           fi
-          ARGS="--topic $TOPIC --task ${{ inputs.task_id }} --phase2 --phase3 --phase4"
-          ARGS="$ARGS --output data/collection.jsonl --db-path data/state/industry_intelligence.sqlite"
-          if [ -n "${{ inputs.days }}" ]; then ARGS="$ARGS --days ${{ inputs.days }}"; fi
-          if [ -n "${{ inputs.regions }}" ]; then ARGS="$ARGS --regions ${{ inputs.regions }}"; fi
-          if [ -n "${{ inputs.companies }}" ]; then ARGS="$ARGS --companies ${{ inputs.companies }}"; fi
-          if [ -n "${{ inputs.focus }}" ]; then ARGS="$ARGS --focus ${{ inputs.focus }}"; fi
-          ARGS="$ARGS --depth ${{ inputs.depth }}"
-          ARGS="$ARGS --notify ${{ inputs.notify }}"
-          python main.py $ARGS
+          TOPIC="$INPUT_TOPIC_ID"
+          if [ -z "$TOPIC" ]; then
+            TOPIC="$(python - <<'PY'
+          import pathlib
+          import os
+
+          import yaml
+
+          task_id = os.environ["INPUT_TASK_ID"]
+          task_path = pathlib.Path("config/tasks") / f"{task_id}.yaml"
+          data = yaml.safe_load(task_path.read_text(encoding="utf-8"))
+          print(data["task"]["topic_id"])
+          PY
+            )"
+          fi
+          ARGS=(--topic "$TOPIC" --task "$INPUT_TASK_ID" --phase2 --phase3 --phase4)
+          ARGS+=(--output data/collection.jsonl --db-path data/state/industry_intelligence.sqlite)
+          if [ -n "$INPUT_DAYS" ]; then ARGS+=(--days "$INPUT_DAYS"); fi
+          if [ -n "$INPUT_REGIONS" ]; then ARGS+=(--regions "$INPUT_REGIONS"); fi
+          if [ -n "$INPUT_COMPANIES" ]; then ARGS+=(--companies "$INPUT_COMPANIES"); fi
+          if [ -n "$INPUT_FOCUS" ]; then ARGS+=(--focus "$INPUT_FOCUS"); fi
+          ARGS+=(--depth "$INPUT_DEPTH" --notify "$INPUT_NOTIFY")
+          python main.py "${ARGS[@]}"
 
       - name: Commit data and reports
         run: |

@@ -52,5 +52,7 @@ Desktop.ini
 reports/generated/
 
 # Temporary
+.tools/
+.tmp/
 *.tmp
 *.log

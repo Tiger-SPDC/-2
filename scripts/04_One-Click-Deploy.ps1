@@ -572,11 +572,32 @@ function Ensure-RemoteSecret {
 function Enable-AutomationWorkflows {
     param([string]$Repo)
 
-    Set-RepositoryJsonSetting "repos/$Repo/actions/permissions" `
-        @{ enabled = $true; allowed_actions = "all" } "GitHub Actions enabled"
-    Set-RepositoryJsonSetting "repos/$Repo/actions/permissions/workflow" `
-        @{ default_workflow_permissions = "write"; can_approve_pull_request_reviews = $false } `
-        "workflow token write permission enabled"
+    $permissionsRaw = & $script:GhCommand api "repos/$Repo/actions/permissions" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[WARN] Could not read the repository Actions policy; it was left unchanged." `
+            -ForegroundColor Yellow
+    } else {
+        $permissions = $permissionsRaw | ConvertFrom-Json
+        if ($permissions.enabled) {
+            Write-Host "[OK] GitHub Actions is enabled; the existing allow-list policy was preserved." `
+                -ForegroundColor Green
+        } else {
+            Set-RepositoryJsonSetting "repos/$Repo/actions/permissions" `
+                @{ enabled = $true; allowed_actions = $permissions.allowed_actions } `
+                "GitHub Actions enabled with the existing allow-list policy"
+        }
+    }
+
+    $workflowPermissionsRaw = & $script:GhCommand api `
+        "repos/$Repo/actions/permissions/workflow" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $workflowPermissions = $workflowPermissionsRaw | ConvertFrom-Json
+        Write-Host "[OK] Default workflow token permission preserved: $($workflowPermissions.default_workflow_permissions)." `
+            -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] Could not read the default workflow token policy; it was left unchanged." `
+            -ForegroundColor Yellow
+    }
 
     $workflows = @(
         "ci.yml",

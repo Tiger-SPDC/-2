@@ -122,8 +122,8 @@ Windows 双击根目录 `一键部署.cmd`。它会完成本地隔离环境、�
 
 **两步启用（在你 fork 的那个仓库里操作，不是原作者仓库）：**
 
-1. **Allow Actions**：`Settings → Actions → General → Actions permissions` → 选 **"Allow all actions and reusable workflows"**（默认常常是 Disable / Allow select）。
-2. **给读写权限**：同一页的 **Workflow permissions** → 选 **"Read and write permissions"**（本仓库 workflow 要 `contents: write` 来自动提交数据）。
+1. **Allow Actions**：`Settings → Actions → General → Actions permissions` → 允许 GitHub 官方 Actions 即可（本项目使用 `actions/checkout`、`actions/setup-python`、`actions/upload-artifact`）。
+2. **保留默认只读权限**：同一页的 **Workflow permissions** 可保持 **"Read repository contents and packages permissions"**；需要回写数据的 workflow 已在文件内单独声明 `contents: write`。
 3. **启用 workflow**：回到 `Actions` 页签 → 左列找到 `manual_run.yml` → 点进去 → 右上角 **"Enable workflow"** 按钮 → 点一下。
 
 完成后 `Actions → Manual Run → Run workflow` 的按钮就会出现。
